@@ -238,6 +238,7 @@ mod tests {
         let mut len = [0u8];
         let res = fd_base58_encode_32(bytes.as_ptr(), len.as_mut_ptr(), buf.as_mut_ptr());
         let as_slice = unsafe { std::slice::from_raw_parts(res, len[0] as usize) };
-        println!("as_slice: {as_slice:?}");
+        let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
+        assert_eq!(&collected, "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi");
     }
 }
