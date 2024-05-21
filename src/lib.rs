@@ -1,3 +1,4 @@
+#[cfg(target_feature = "avx2")]
 use std::arch::x86_64::{
     __m128i, _mm256_extractf128_si256, _mm256_maskstore_epi64, _mm_bslli_si128, _mm_storeu_si128,
 };
