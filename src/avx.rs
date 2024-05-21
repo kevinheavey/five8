@@ -28,7 +28,7 @@ fn wuc_st(p: *mut u8, i: WucT) {
 }
 
 #[inline(always)]
-fn wuc_stu(p: *mut u8, i: WucT) {
+pub(crate) fn wuc_stu(p: *mut u8, i: WucT) {
     unsafe { _mm256_storeu_si256(p as *mut WucT, i) };
 }
 
@@ -214,44 +214,48 @@ first non-zero byte in the first n bytes.  If all n bytes are zero,
 returns n.  Return value is in [0, n].  For the two-vector cases, in0
 contains the first 32 bytes and in1 contains the second 32 bytes. */
 #[inline(always)]
-fn count_leading_zeros_26(in_: WucT) -> u32 {
-    let mask0 =
-        unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in_, _mm256_setzero_si256())) } as u64;
-    let mask = fd_ulong_mask_lsb(27) ^ (mask0 & fd_ulong_mask_lsb(26)); /* Flips the low 26 bits and puts a 1 in bit 26 */
-    mask.leading_zeros()
+pub(crate) fn count_leading_zeros_26(in_: WucT) -> u64 {
+    const MASK_LSB_27: u64 = fd_ulong_mask_lsb(27);
+    const MASK_LSB_26: u64 = fd_ulong_mask_lsb(26);
+    let mask0 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in_, _mm256_setzero_si256())) }
+        as u32 as u64;
+    let mask = MASK_LSB_27 ^ (mask0 & MASK_LSB_26); /* Flips the low 26 bits and puts a 1 in bit 26 */
+    mask.leading_zeros() as u64
 }
 
 #[inline(always)]
 pub(crate) fn count_leading_zeros_32(in_: WucT) -> u64 {
     const MASK_LSB: u64 = fd_ulong_mask_lsb(33);
     let comparison = unsafe { _mm256_cmpeq_epi8(in_, _mm256_setzero_si256()) };
-    let xor_rhs = unsafe { _mm256_movemask_epi8(comparison) }
-        as u32 as u64;
+    let xor_rhs = unsafe { _mm256_movemask_epi8(comparison) } as u32 as u64;
     let mask = MASK_LSB ^ xor_rhs;
     mask.trailing_zeros() as u64
 }
 
 #[inline(always)]
 pub(crate) fn count_leading_zeros_45(in0: WucT, in1: WucT) -> u64 {
+    const MASK_LSB_46: u64 = fd_ulong_mask_lsb(46);
+    const MASK_LSB_13: u64 = fd_ulong_mask_lsb(13);
     let mask0 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in0, _mm256_setzero_si256())) }
         as u32 as u64;
     let mask1 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in1, _mm256_setzero_si256())) }
         as u32 as u64;
-    let mask = fd_ulong_mask_lsb(46) ^ (((mask1 & fd_ulong_mask_lsb(13)) << 32) | mask0);
+    let mask = MASK_LSB_46 ^ (((mask1 & MASK_LSB_13) << 32) | mask0);
     mask.trailing_zeros() as u64
 }
 
 #[inline(always)]
-pub(crate) fn count_leading_zeros_64(in0: WucT, in1: WucT) -> u32 {
-    let mask0 =
-        unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in0, _mm256_setzero_si256())) } as u64;
-    let mask1 =
-        unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in1, _mm256_setzero_si256())) } as u64;
+pub(crate) fn count_leading_zeros_64(in0: WucT, in1: WucT) -> u64 {
+    let mask0 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in0, _mm256_setzero_si256())) }
+        as u32 as u64;
+    let mask1 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in1, _mm256_setzero_si256())) }
+        as u32 as u64;
     let mask = !((mask1 << 32) | mask0);
+    // todo port the optimised fd_ulong_find_lsb_w_default
     if mask == 0 {
         64
     } else {
-        mask.leading_zeros()
+        mask.leading_zeros() as u64
     }
 }
 
