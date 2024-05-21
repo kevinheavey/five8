@@ -139,7 +139,7 @@ pub fn fd_base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> 
         #[cfg(target_feature = "avx2")]
         {
             let bytes_ = wuc_ldu(bytes);
-            count_leading_zeros_32(bytes_);
+            count_leading_zeros_32(bytes_)
         }
         #[cfg(not(target_feature = "avx2"))]
         {
@@ -188,7 +188,6 @@ pub fn fd_base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> 
         intermediate.0[i - 1] += intermediate.0[i] / r1div;
         intermediate.0[i] %= r1div;
     }
-    let intermediate_ptr = intermediate.0.as_ptr() as *const i64;
     let skip = {
         #[cfg(not(target_feature = "avx2"))]
         {
@@ -251,6 +250,7 @@ pub fn fd_base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> 
 
         #[cfg(target_feature = "avx2")]
         {
+            let intermediate_ptr = intermediate.0.as_ptr() as *const i64;
             let intermediate0 = wl_ld(intermediate_ptr);
             let intermediate1 = wl_ld(unsafe { intermediate_ptr.offset(4) });
             let intermediate2 = wl_ld(unsafe { intermediate_ptr.offset(8) });
@@ -322,14 +322,52 @@ pub fn fd_base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> 
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_base58_encode_32() {
-        let mut buf = [0i8; FD_BASE58_ENCODED_32_SZ];
-        let mut bytes = [1u8; 32];
-        let mut len = [0u8];
+    fn encode_32_to_string(bytes: &[u8; 32], len: &mut [u8; 1], buf: &mut [i8; 45]) -> String {
         let res = fd_base58_encode_32(bytes.as_ptr(), len.as_mut_ptr(), buf.as_mut_ptr());
         let as_slice = unsafe { std::slice::from_raw_parts(res, len[0] as usize) };
         let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
-        assert_eq!(&collected, "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi");
+        collected
+    }
+
+    #[test]
+    fn test_base58_encode_32() {
+        let mut buf = [0i8; FD_BASE58_ENCODED_32_SZ];
+        let mut len = [0u8];
+        let mut bytes = [0u8; 32];
+        assert_eq!(
+            &encode_32_to_string(&bytes, &mut len, &mut buf),
+            "11111111111111111111111111111111"
+        );
+        assert_eq!(len[0], 32);
+        bytes[31] += 1;
+        assert_eq!(
+            &encode_32_to_string(&bytes, &mut len, &mut buf),
+            "11111111111111111111111111111112"
+        );
+        assert_eq!(len[0], 32);
+        bytes[30] += 1;
+        assert_eq!(
+            &encode_32_to_string(&bytes, &mut len, &mut buf),
+            "1111111111111111111111111111115S"
+        );
+        assert_eq!(len[0], 32);
+        let mut bytes = [255u8; 32];
+        assert_eq!(
+            &encode_32_to_string(&bytes, &mut len, &mut buf),
+            "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFG"
+        );
+        assert_eq!(len[0], 44);
+        bytes[31] -= 1;
+        assert_eq!(
+            &encode_32_to_string(&bytes, &mut len, &mut buf),
+            "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFF"
+        );
+        assert_eq!(len[0], 44);
+        let bytes = [1u8; 32];
+        assert_eq!(
+            &encode_32_to_string(&bytes, &mut len, &mut buf),
+            "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi"
+        );
+        assert_eq!(len[0], 43);
     }
 }
