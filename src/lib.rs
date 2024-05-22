@@ -603,6 +603,7 @@ fn intermediate_to_base58_scalar<
     skip
 }
 
+#[inline(always)]
 fn adjust_intermediate_array<
     const INTERMEDIATE_SZ_W_PADDING: usize,
     const INTERMEDIATE_SZ: usize,
@@ -627,11 +628,13 @@ fn adjust_intermediate_array<
     }
 }
 
+#[inline(always)]
 fn init_intermediate_array<const INTERMEDIATE_SZ_W_PADDING: usize>(
 ) -> Intermediate<INTERMEDIATE_SZ_W_PADDING> {
     Intermediate([0u64; INTERMEDIATE_SZ_W_PADDING])
 }
 
+#[inline(always)]
 fn make_binary_array<const BINARY_SZ: usize>(bytes: *const u8) -> [u32; BINARY_SZ] {
     /* X = sum_i bytes[i] * 2^(8*(BYTE_CNT-1-i)) */
 
