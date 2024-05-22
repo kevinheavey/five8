@@ -649,22 +649,22 @@ mod tests {
 
     fn encode_32_to_string(
         bytes: &[u8; 32],
-        len: &mut [u8; 1],
+        len: &mut u8,
         buf: &mut [i8; FD_BASE58_ENCODED_32_SZ],
     ) -> String {
-        let res = fd_base58_encode_32(bytes.as_ptr(), len.as_mut_ptr(), buf.as_mut_ptr());
-        let as_slice = unsafe { std::slice::from_raw_parts(res, len[0] as usize) };
+        let res = fd_base58_encode_32(bytes.as_ptr(), len, buf.as_mut_ptr());
+        let as_slice = unsafe { std::slice::from_raw_parts(res, *len as usize) };
         let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
         collected
     }
 
     fn encode_64_to_string(
         bytes: &[u8; 64],
-        len: &mut [u8; 1],
+        len: &mut u8,
         buf: &mut [i8; FD_BASE58_ENCODED_64_SZ],
     ) -> String {
-        let res = fd_base58_encode_64(bytes.as_ptr(), len.as_mut_ptr(), buf.as_mut_ptr());
-        let as_slice = unsafe { std::slice::from_raw_parts(res, len[0] as usize) };
+        let res = fd_base58_encode_64(bytes.as_ptr(), len, buf.as_mut_ptr());
+        let as_slice = unsafe { std::slice::from_raw_parts(res, *len as usize) };
         let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
         collected
     }
@@ -672,78 +672,78 @@ mod tests {
     #[test]
     fn test_base58_encode_32() {
         let mut buf = [0i8; FD_BASE58_ENCODED_32_SZ];
-        let mut len = [0u8];
+        let mut len = 0u8;
         let mut bytes = [0u8; 32];
         assert_eq!(
             &encode_32_to_string(&bytes, &mut len, &mut buf),
             "11111111111111111111111111111111"
         );
-        assert_eq!(len[0], 32);
+        assert_eq!(len, 32);
         bytes[31] += 1;
         assert_eq!(
             &encode_32_to_string(&bytes, &mut len, &mut buf),
             "11111111111111111111111111111112"
         );
-        assert_eq!(len[0], 32);
+        assert_eq!(len, 32);
         bytes[30] += 1;
         assert_eq!(
             &encode_32_to_string(&bytes, &mut len, &mut buf),
             "1111111111111111111111111111115S"
         );
-        assert_eq!(len[0], 32);
+        assert_eq!(len, 32);
         let mut bytes = [255u8; 32];
         assert_eq!(
             &encode_32_to_string(&bytes, &mut len, &mut buf),
             "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFG"
         );
-        assert_eq!(len[0], 44);
+        assert_eq!(len, 44);
         bytes[31] -= 1;
         assert_eq!(
             &encode_32_to_string(&bytes, &mut len, &mut buf),
             "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFF"
         );
-        assert_eq!(len[0], 44);
+        assert_eq!(len, 44);
         let bytes = [1u8; 32];
         assert_eq!(
             &encode_32_to_string(&bytes, &mut len, &mut buf),
             "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi"
         );
-        assert_eq!(len[0], 43);
+        assert_eq!(len, 43);
     }
 
     #[test]
     fn test_base58_encode_64() {
         let mut buf = [0i8; FD_BASE58_ENCODED_64_SZ];
-        let mut len = [0u8];
+        let mut len = 0u8;
         let mut bytes = [0u8; 64];
         assert_eq!(
             &encode_64_to_string(&bytes, &mut len, &mut buf),
             "1111111111111111111111111111111111111111111111111111111111111111"
         );
-        assert_eq!(len[0], 64);
+        assert_eq!(len, 64);
         bytes[63] += 1;
         assert_eq!(
             &encode_64_to_string(&bytes, &mut len, &mut buf),
             "1111111111111111111111111111111111111111111111111111111111111112"
         );
-        assert_eq!(len[0], 64);
+        assert_eq!(len, 64);
         bytes[62] += 1;
         assert_eq!(
             &encode_64_to_string(&bytes, &mut len, &mut buf),
             "111111111111111111111111111111111111111111111111111111111111115S"
         );
-        assert_eq!(len[0], 64);
+        assert_eq!(len, 64);
         let mut bytes = [255; 64];
         assert_eq!(
             &encode_64_to_string(&bytes, &mut len, &mut buf),
             "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
         );
-        assert_eq!(len[0], 88);
+        assert_eq!(len, 88);
         bytes[63] -= 1;
         assert_eq!(
             &encode_64_to_string(&bytes, &mut len, &mut buf),
             "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roP"
         );
-        assert_eq!(len[0], 88);
+        assert_eq!(len, 88);
     }
 }
