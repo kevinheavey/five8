@@ -239,6 +239,7 @@ fn fd_uint_load_4(p: *const u8) -> u32 {
     t
 }
 
+#[cfg(target_feature = "avx2")]
 const fn fd_ulong_align_up(x: usize, a: usize) -> usize {
     ((x) + ((a) - 1)) & (!((a) - 1))
 }
@@ -656,32 +657,57 @@ fn unlikely(b: bool) -> bool {
 }
 
 pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> {
+    fd_base58_decode::<FD_BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32, N_32>(
+        encoded,
+        out,
+        &DEC_TABLE_32,
+    )
+}
+
+pub fn fd_base58_decode_64(encoded: *const i8, out: *mut u8) -> Option<*mut u8> {
+    fd_base58_decode::<FD_BASE58_ENCODED_64_SZ, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64, N_64>(
+        encoded,
+        out,
+        &DEC_TABLE_64,
+    )
+}
+
+#[inline]
+fn fd_base58_decode<
+    const ENCODED_SZ: usize,
+    const RAW58_SZ: usize,
+    const INTERMEDIATE_SZ: usize,
+    const BINARY_SZ: usize,
+    const N: usize,
+>(
+    encoded: *const i8,
+    out: *mut u8,
+    dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
+) -> Option<*mut u8> {
     /* Validate string and count characters before the nul terminator */
     let mut char_cnt = 0usize;
-    while char_cnt < FD_BASE58_ENCODED_32_SZ {
+    while char_cnt < ENCODED_SZ {
         let c = unsafe { *encoded.offset(char_cnt as isize) };
         if c == 0 {
             break;
         }
-        println!("c: {c}");
         /* If c<'1', this will underflow and idx will be huge */
         let idx = c as u8 as u64 - BASE58_INVERSE_TABLE_OFFSET as u64;
         let idx = idx.min(BASE58_INVERSE_TABLE_SENTINEL as u64);
         char_cnt += 1;
         if unlikely(BASE58_INVERSE[idx as usize] == BASE58_INVALID_CHAR) {
-            println!("returning null at first opportunity");
             return None;
         }
     }
-    if unlikely(char_cnt == FD_BASE58_ENCODED_32_SZ) {
+    if unlikely(char_cnt == ENCODED_SZ) {
         /* too long */
         return None;
     }
     /* X = sum_i raw_base58[i] * 58^(RAW58_SZ-1-i) */
-    let mut raw_base58 = [0u8; RAW58_SZ_32];
+    let mut raw_base58 = [0u8; RAW58_SZ];
     /* Prepend enough 0s to make it exactly RAW58_SZ characters */
-    let prepend_0 = RAW58_SZ_32 - char_cnt;
-    for j in 0..RAW58_SZ_32 {
+    let prepend_0 = RAW58_SZ - char_cnt;
+    for j in 0..RAW58_SZ {
         raw_base58[j] = if j < prepend_0 {
             0
         } else {
@@ -691,8 +717,8 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> 
     }
     /* Convert to the intermediate format (base 58^5):
     X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i)) */
-    let mut intermediate = [0u64; INTERMEDIATE_SZ_32];
-    for i in 0..INTERMEDIATE_SZ_32 {
+    let mut intermediate = [0u64; INTERMEDIATE_SZ];
+    for i in 0..INTERMEDIATE_SZ {
         intermediate[i] = raw_base58[5 * i + 0] as u64 * 11316496
             + raw_base58[5 * i + 1] as u64 * 195112
             + raw_base58[5 * i + 2] as u64 * 3364
@@ -708,11 +734,11 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> 
     For N==64, the largest anything in binary can get is binary[13]:
     even if intermediate[i]==58^5-1 for all i, then binary[13] <
     2^63.998.  Hanging in there, just by a thread! */
-    let mut binary = [0u64; BINARY_SZ_32];
-    for j in 0..BINARY_SZ_32 {
+    let mut binary = [0u64; BINARY_SZ];
+    for j in 0..BINARY_SZ {
         let mut acc = 0u64;
-        for i in 0..INTERMEDIATE_SZ_32 {
-            acc += intermediate[i] * DEC_TABLE_32[i][j] as u64;
+        for i in 0..INTERMEDIATE_SZ {
+            acc += intermediate[i] * dec_table[i][j] as u64;
         }
         binary[j] = acc;
     }
@@ -723,7 +749,7 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> 
 
     For N==64, even if we add 2^32 to binary[13], it is still 2^63.998,
     so this won't overflow. */
-    for i in (1..BINARY_SZ_32).rev() {
+    for i in (1..BINARY_SZ).rev() {
         binary[i - 1] += binary[i] >> 32;
         binary[i] &= 0xFFFFFFFF;
     }
@@ -735,7 +761,7 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> 
     }
     /* Convert each term to big endian for the final output */
     let out_as_uint = out as *mut u32;
-    for i in 0..BINARY_SZ_32 {
+    for i in 0..BINARY_SZ {
         unsafe {
             *out_as_uint.add(i) = fd_uint_bswap(binary[i] as u32);
         }
@@ -744,7 +770,7 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> 
     as the decoded version has leading 0s. The check doesn't read past
     the end of encoded, because '\0' != '1', so it will return NULL. */
     let mut leading_zero_cnt = 0u64;
-    while leading_zero_cnt < N_32 as u64 {
+    while leading_zero_cnt < N as u64 {
         if unsafe { *out.offset(leading_zero_cnt as isize) != 0 } {
             break;
         }
@@ -774,6 +800,23 @@ mod tests {
         collected
     }
 
+    fn check_encode_decode_32(
+        bytes: &[u8; 32],
+        len: &mut u8,
+        buf: &mut [i8; FD_BASE58_ENCODED_32_SZ],
+        expected_len: u8,
+        encoded: &str,
+    ) {
+        assert_eq!(&encode_32_to_string(&bytes, len, buf), encoded);
+        assert_eq!(*len, expected_len);
+        let mut null_terminated = encoded.as_bytes().to_vec();
+        null_terminated.push(b'\0');
+        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
+        let mut decoded = [0u8; 32];
+        fd_base58_decode_32(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
+        assert_eq!(&decoded, bytes);
+    }
+
     fn encode_64_to_string(
         bytes: &[u8; 64],
         len: &mut u8,
@@ -786,43 +829,56 @@ mod tests {
     }
 
     #[test]
-    fn test_base58_encode_32() {
+    fn test_encode_decode_32() {
         let mut buf = [0i8; FD_BASE58_ENCODED_32_SZ];
         let mut len = 0u8;
         let mut bytes = [0u8; 32];
-        assert_eq!(
-            &encode_32_to_string(&bytes, &mut len, &mut buf),
-            "11111111111111111111111111111111"
+        check_encode_decode_32(
+            &bytes,
+            &mut len,
+            &mut buf,
+            32,
+            "11111111111111111111111111111111",
         );
-        assert_eq!(len, 32);
         bytes[31] += 1;
-        assert_eq!(
-            &encode_32_to_string(&bytes, &mut len, &mut buf),
-            "11111111111111111111111111111112"
+        check_encode_decode_32(
+            &bytes,
+            &mut len,
+            &mut buf,
+            32,
+            "11111111111111111111111111111112",
         );
-        assert_eq!(len, 32);
         bytes[30] += 1;
-        assert_eq!(
-            &encode_32_to_string(&bytes, &mut len, &mut buf),
-            "1111111111111111111111111111115S"
+        check_encode_decode_32(
+            &bytes,
+            &mut len,
+            &mut buf,
+            32,
+            "1111111111111111111111111111115S",
         );
-        assert_eq!(len, 32);
         let mut bytes = [255u8; 32];
-        assert_eq!(
-            &encode_32_to_string(&bytes, &mut len, &mut buf),
-            "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFG"
+        check_encode_decode_32(
+            &bytes,
+            &mut len,
+            &mut buf,
+            44,
+            "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFG",
         );
-        assert_eq!(len, 44);
         bytes[31] -= 1;
-        assert_eq!(
-            &encode_32_to_string(&bytes, &mut len, &mut buf),
-            "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFF"
+        check_encode_decode_32(
+            &bytes,
+            &mut len,
+            &mut buf,
+            44,
+            "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFF",
         );
-        assert_eq!(len, 44);
         let bytes = [1u8; 32];
-        assert_eq!(
-            &encode_32_to_string(&bytes, &mut len, &mut buf),
-            "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi"
+        check_encode_decode_32(
+            &bytes,
+            &mut len,
+            &mut buf,
+            43,
+            "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
         );
         assert_eq!(len, 43);
     }
