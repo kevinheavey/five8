@@ -304,6 +304,7 @@ fn add_binary_to_intermediate<const INTERMEDIATE_SZ_W_PADDING: usize, const BINA
     intermediate.0[j + 1] += binary[i] as u64 * multiplier;
 }
 
+#[inline]
 pub fn fd_base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mut i8 {
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -428,6 +429,7 @@ pub fn fd_base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> 
     out
 }
 
+#[inline]
 pub fn fd_base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mut i8 {
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -656,6 +658,7 @@ fn unlikely(b: bool) -> bool {
     b
 }
 
+#[inline]
 pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> {
     fd_base58_decode::<FD_BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32, N_32>(
         encoded,
@@ -664,6 +667,7 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> 
     )
 }
 
+#[inline]
 pub fn fd_base58_decode_64(encoded: *const i8, out: *mut u8) -> Option<*mut u8> {
     fd_base58_decode::<FD_BASE58_ENCODED_64_SZ, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64, N_64>(
         encoded,
