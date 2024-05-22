@@ -1,85 +1,71 @@
 use crate::bits_find_lsb::fd_ulong_find_lsb_w_default;
 use std::arch::x86_64::{
     __m256i, _mm256_add_epi8, _mm256_and_si256, _mm256_cmpeq_epi64, _mm256_cmpeq_epi8,
-    _mm256_cmpgt_epi64, _mm256_cmpgt_epi8, _mm256_extractf128_si256, _mm256_load_si256,
-    _mm256_loadu_si256, _mm256_movemask_epi8, _mm256_mul_epu32, _mm256_or_si256,
-    _mm256_set1_epi64x, _mm256_set1_epi8, _mm256_set_m128i, _mm256_setr_epi64x, _mm256_setr_epi8,
-    _mm256_setzero_si256, _mm256_shuffle_epi8, _mm256_slli_epi64, _mm256_slli_si256,
-    _mm256_srli_epi64, _mm256_srlv_epi64, _mm256_store_si256, _mm256_storeu_si256,
-    _mm256_sub_epi64, _mm256_sub_epi8, _mm_or_si128, _mm_setzero_si128, _mm_slli_si128,
-    _mm_srli_si128,
+    _mm256_cmpgt_epi64, _mm256_cmpgt_epi8, _mm256_extractf128_si256, _mm256_loadu_si256,
+    _mm256_movemask_epi8, _mm256_mul_epu32, _mm256_or_si256, _mm256_set1_epi64x, _mm256_set1_epi8,
+    _mm256_set_m128i, _mm256_setr_epi64x, _mm256_setr_epi8, _mm256_setzero_si256,
+    _mm256_shuffle_epi8, _mm256_slli_epi64, _mm256_slli_si256, _mm256_srli_epi64,
+    _mm256_srlv_epi64, _mm256_storeu_si256, _mm256_sub_epi64, _mm256_sub_epi8, _mm_or_si128,
+    _mm_setzero_si128, _mm_slli_si128, _mm_srli_si128,
 };
 
-type WucT = __m256i;
-type WlT = __m256i;
-
 #[inline(always)]
-fn wuc_ld(p: *const u8) -> WucT {
-    unsafe { _mm256_load_si256(p as *const WucT) }
+pub(crate) fn wuc_ldu(p: *const u8) -> __m256i {
+    unsafe { _mm256_loadu_si256(p as *const __m256i) }
 }
 
 #[inline(always)]
-pub(crate) fn wuc_ldu(p: *const u8) -> WucT {
-    unsafe { _mm256_loadu_si256(p as *const WucT) }
+pub(crate) fn wuc_stu(p: *mut u8, i: __m256i) {
+    unsafe { _mm256_storeu_si256(p as *mut __m256i, i) };
 }
 
 #[inline(always)]
-fn wuc_st(p: *mut u8, i: WucT) {
-    unsafe { _mm256_store_si256(p as *mut WucT, i) };
-}
-
-#[inline(always)]
-pub(crate) fn wuc_stu(p: *mut u8, i: WucT) {
-    unsafe { _mm256_storeu_si256(p as *mut WucT, i) };
-}
-
-#[inline(always)]
-pub(crate) fn wl(l0: i64, l1: i64, l2: i64, l3: i64) -> WucT {
+pub(crate) fn wl(l0: i64, l1: i64, l2: i64, l3: i64) -> __m256i {
     unsafe { _mm256_setr_epi64x(l0, l1, l2, l3) }
 }
 
 #[inline(always)]
-pub(crate) fn wl_bcast(l0: i64) -> WucT {
+pub(crate) fn wl_bcast(l0: i64) -> __m256i {
     unsafe { _mm256_set1_epi64x(l0) }
 }
 
 #[inline(always)]
-pub(crate) fn wl_shl<const IMM8: i32>(a: __m256i) -> WucT {
+pub(crate) fn wl_shl<const IMM8: i32>(a: __m256i) -> __m256i {
     unsafe { _mm256_slli_epi64::<IMM8>(a) }
 }
 
 #[inline(always)]
-pub(crate) fn wl_shru<const IMM8: i32>(a: __m256i) -> WucT {
+pub(crate) fn wl_shru<const IMM8: i32>(a: __m256i) -> __m256i {
     unsafe { _mm256_srli_epi64::<IMM8>(a) }
 }
 
 #[inline(always)]
-pub(crate) fn wl_shru_vector(a: __m256i, b: __m256i) -> WucT {
+pub(crate) fn wl_shru_vector(a: __m256i, b: __m256i) -> __m256i {
     unsafe { _mm256_srlv_epi64(a, b) }
 }
 
 #[inline(always)]
-pub(crate) fn wl_and(a: __m256i, b: __m256i) -> WucT {
+pub(crate) fn wl_and(a: __m256i, b: __m256i) -> __m256i {
     unsafe { _mm256_and_si256(a, b) }
 }
 
 #[inline(always)]
-pub(crate) fn wl_eq(a: __m256i, b: __m256i) -> WucT {
+pub(crate) fn wl_eq(a: __m256i, b: __m256i) -> __m256i {
     unsafe { _mm256_cmpeq_epi64(a, b) }
 }
 
 #[inline(always)]
-pub(crate) fn wl_gt(a: __m256i, b: __m256i) -> WucT {
+pub(crate) fn wl_gt(a: __m256i, b: __m256i) -> __m256i {
     unsafe { _mm256_cmpgt_epi64(a, b) }
 }
 
 #[inline(always)]
-fn wl_sub(a: __m256i, b: __m256i) -> WucT {
+fn wl_sub(a: __m256i, b: __m256i) -> __m256i {
     unsafe { _mm256_sub_epi64(a, b) }
 }
 
 #[inline(always)]
-pub(crate) fn intermediate_to_raw(intermediate: WlT) -> WucT {
+pub(crate) fn intermediate_to_raw(intermediate: __m256i) -> __m256i {
     /* The computation we need to do here mathematically is
     y=(floor(x/58^k) % 58) for various values of k.  It seems that the
     best way to compute it (at least what the compiler generates in the
@@ -179,7 +165,7 @@ const fn fd_ulong_mask_lsb(n: i32) -> u64 {
 base58 digits ('1'-'z', with some skips).  Anything not in the range
 [0, 58) will be mapped arbitrarily, but won't affect other bytes. */
 #[inline(always)]
-pub(crate) fn raw_to_base58(in_: WucT) -> WucT {
+pub(crate) fn raw_to_base58(in_: __m256i) -> __m256i {
     /* <30 cycles for two vectors (64 conversions) */
     /* We'll perform the map as an arithmetic expression,
     b58ch(x) = '1' + x + 7*[x>8] + [x>16] + [x>21] + 6*[x>32] + [x>43]
@@ -215,7 +201,7 @@ first non-zero byte in the first n bytes.  If all n bytes are zero,
 returns n.  Return value is in [0, n].  For the two-vector cases, in0
 contains the first 32 bytes and in1 contains the second 32 bytes. */
 #[inline(always)]
-pub(crate) fn count_leading_zeros_26(in_: WucT) -> u64 {
+pub(crate) fn count_leading_zeros_26(in_: __m256i) -> u64 {
     const MASK_LSB_27: u64 = fd_ulong_mask_lsb(27);
     const MASK_LSB_26: u64 = fd_ulong_mask_lsb(26);
     let mask0 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in_, _mm256_setzero_si256())) }
@@ -225,7 +211,7 @@ pub(crate) fn count_leading_zeros_26(in_: WucT) -> u64 {
 }
 
 #[inline(always)]
-pub(crate) fn count_leading_zeros_32(in_: WucT) -> u64 {
+pub(crate) fn count_leading_zeros_32(in_: __m256i) -> u64 {
     const MASK_LSB: u64 = fd_ulong_mask_lsb(33);
     let comparison = unsafe { _mm256_cmpeq_epi8(in_, _mm256_setzero_si256()) };
     let xor_rhs = unsafe { _mm256_movemask_epi8(comparison) } as u32 as u64;
@@ -234,7 +220,7 @@ pub(crate) fn count_leading_zeros_32(in_: WucT) -> u64 {
 }
 
 #[inline(always)]
-pub(crate) fn count_leading_zeros_45(in0: WucT, in1: WucT) -> u64 {
+pub(crate) fn count_leading_zeros_45(in0: __m256i, in1: __m256i) -> u64 {
     const MASK_LSB_46: u64 = fd_ulong_mask_lsb(46);
     const MASK_LSB_13: u64 = fd_ulong_mask_lsb(13);
     let mask0 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in0, _mm256_setzero_si256())) }
@@ -246,7 +232,7 @@ pub(crate) fn count_leading_zeros_45(in0: WucT, in1: WucT) -> u64 {
 }
 
 #[inline(always)]
-pub(crate) fn count_leading_zeros_64(in0: WucT, in1: WucT) -> u64 {
+pub(crate) fn count_leading_zeros_64(in0: __m256i, in1: __m256i) -> u64 {
     let mask0 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in0, _mm256_setzero_si256())) }
         as u32 as u64;
     let mask1 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in1, _mm256_setzero_si256())) }
@@ -278,7 +264,7 @@ is equivalent to moving the data one byte later in memory, which
 would show in the diagram as moving the values to the right. */
 
 #[inline(always)]
-pub(crate) fn ten_per_slot_down_32(in0: __m256i, in1: __m256i, in2: __m256i) -> (WucT, WucT) {
+pub(crate) fn ten_per_slot_down_32(in0: __m256i, in1: __m256i, in2: __m256i) -> (__m256i, __m256i) {
     let lo0 = unsafe { _mm256_extractf128_si256(in0, 0) };
     let hi0 = unsafe { _mm256_extractf128_si256(in0, 1) };
     let lo1 = unsafe { _mm256_extractf128_si256(in1, 0) };
@@ -320,7 +306,7 @@ pub(crate) fn ten_per_slot_down_64(
     in2: __m256i,
     in3: __m256i,
     in4: __m256i,
-) -> (WucT, WucT, WucT) {
+) -> (__m256i, __m256i, __m256i) {
     let lo0 = unsafe { _mm256_extractf128_si256(in0, 0) };
     let hi0 = unsafe { _mm256_extractf128_si256(in0, 1) };
     let lo1 = unsafe { _mm256_extractf128_si256(in1, 0) };
@@ -368,6 +354,17 @@ pub(crate) fn wl_ld(p: *const i64) -> __m256i {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::arch::x86_64::{_mm256_load_si256, _mm256_store_si256};
+
+    fn wuc_ld(p: *const u8) -> __m256i {
+        unsafe { _mm256_load_si256(p as *const __m256i) }
+    }
+
+    #[inline(always)]
+    fn wuc_st(p: *mut u8, i: __m256i) {
+        unsafe { _mm256_store_si256(p as *mut __m256i, i) };
+    }
 
     #[test]
     fn test_fd_ulong_mask_lsb() {
