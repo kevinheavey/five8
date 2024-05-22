@@ -17,10 +17,10 @@ use avx::{
 #[cfg(target_feature = "avx2")]
 mod bits_find_lsb;
 
-const FD_BASE58_ENCODED_32_LEN: usize = 44; /* Computed as ceil(log_58(256^32 - 1)) */
-const FD_BASE58_ENCODED_64_LEN: usize = 88; /* Computed as ceil(log_58(256^64 - 1)) */
-const FD_BASE58_ENCODED_32_SZ: usize = FD_BASE58_ENCODED_32_LEN + 1; /* Including the nul terminator */
-const FD_BASE58_ENCODED_64_SZ: usize = FD_BASE58_ENCODED_64_LEN + 1; /* Including the nul terminator */
+const BASE58_ENCODED_32_LEN: usize = 44; /* Computed as ceil(log_58(256^32 - 1)) */
+const BASE58_ENCODED_64_LEN: usize = 88; /* Computed as ceil(log_58(256^64 - 1)) */
+const BASE58_ENCODED_32_SZ: usize = BASE58_ENCODED_32_LEN + 1; /* Including the nul terminator */
+const BASE58_ENCODED_64_SZ: usize = BASE58_ENCODED_64_LEN + 1; /* Including the nul terminator */
 
 #[cfg(not(target_feature = "avx2"))]
 const BASE58_CHARS: [i8; 58] = [
@@ -306,7 +306,7 @@ fn add_binary_to_intermediate<const INTERMEDIATE_SZ_W_PADDING: usize, const BINA
 }
 
 #[inline]
-pub fn fd_base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mut i8 {
+pub fn base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mut i8 {
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
         {
@@ -431,7 +431,7 @@ pub fn fd_base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> 
 }
 
 #[inline]
-pub fn fd_base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mut i8 {
+pub fn base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mut i8 {
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
         {
@@ -692,8 +692,8 @@ impl core::fmt::Display for DecodeError {
 }
 
 #[inline]
-pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Result<*mut u8, DecodeError> {
-    fd_base58_decode::<FD_BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32, N_32>(
+pub fn base58_decode_32(encoded: *const i8, out: *mut u8) -> Result<*mut u8, DecodeError> {
+    base58_decode::<BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32, N_32>(
         encoded,
         out,
         &DEC_TABLE_32,
@@ -701,8 +701,8 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Result<*mut u8, 
 }
 
 #[inline]
-pub fn fd_base58_decode_64(encoded: *const i8, out: *mut u8) -> Result<*mut u8, DecodeError> {
-    fd_base58_decode::<FD_BASE58_ENCODED_64_SZ, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64, N_64>(
+pub fn base58_decode_64(encoded: *const i8, out: *mut u8) -> Result<*mut u8, DecodeError> {
+    base58_decode::<BASE58_ENCODED_64_SZ, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64, N_64>(
         encoded,
         out,
         &DEC_TABLE_64,
@@ -710,7 +710,7 @@ pub fn fd_base58_decode_64(encoded: *const i8, out: *mut u8) -> Result<*mut u8, 
 }
 
 #[inline]
-fn fd_base58_decode<
+fn base58_decode<
     const ENCODED_SZ: usize,
     const RAW58_SZ: usize,
     const INTERMEDIATE_SZ: usize,
@@ -829,9 +829,9 @@ mod tests {
     fn encode_32_to_string(
         bytes: &[u8; 32],
         len: &mut u8,
-        buf: &mut [i8; FD_BASE58_ENCODED_32_SZ],
+        buf: &mut [i8; BASE58_ENCODED_32_SZ],
     ) -> String {
-        let res = fd_base58_encode_32(bytes.as_ptr(), len, buf.as_mut_ptr());
+        let res = base58_encode_32(bytes.as_ptr(), len, buf.as_mut_ptr());
         let as_slice = unsafe { core::slice::from_raw_parts(res, *len as usize) };
         let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
         collected
@@ -840,7 +840,7 @@ mod tests {
     fn check_encode_decode_32(
         bytes: &[u8; 32],
         len: &mut u8,
-        buf: &mut [i8; FD_BASE58_ENCODED_32_SZ],
+        buf: &mut [i8; BASE58_ENCODED_32_SZ],
         expected_len: u8,
         encoded: &str,
     ) {
@@ -850,16 +850,16 @@ mod tests {
         null_terminated.push(b'\0');
         let null_terminated_ptr = null_terminated.as_slice().as_ptr();
         let mut decoded = [0u8; 32];
-        fd_base58_decode_32(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
+        base58_decode_32(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
     fn encode_64_to_string(
         bytes: &[u8; 64],
         len: &mut u8,
-        buf: &mut [i8; FD_BASE58_ENCODED_64_SZ],
+        buf: &mut [i8; BASE58_ENCODED_64_SZ],
     ) -> String {
-        let res = fd_base58_encode_64(bytes.as_ptr(), len, buf.as_mut_ptr());
+        let res = base58_encode_64(bytes.as_ptr(), len, buf.as_mut_ptr());
         let as_slice = unsafe { core::slice::from_raw_parts(res, *len as usize) };
         let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
         collected
@@ -867,7 +867,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_32() {
-        let mut buf = [0i8; FD_BASE58_ENCODED_32_SZ];
+        let mut buf = [0i8; BASE58_ENCODED_32_SZ];
         let mut len = 0u8;
         let mut bytes = [0u8; 32];
         check_encode_decode_32(
@@ -926,7 +926,7 @@ mod tests {
         let encoded_ptr = encoded.as_ptr();
         assert_eq!(unsafe { *encoded_ptr.offset(31) }, b'2');
         let mut decoded = [0u8; 32];
-        let res = fd_base58_decode_32(encoded_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
+        let res = base58_decode_32(encoded_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
         let as_slice = unsafe { core::slice::from_raw_parts(res, 32) };
         let mut expected = [0u8; 32];
         expected[31] = 1;
@@ -936,7 +936,7 @@ mod tests {
 
     #[test]
     fn test_base58_encode_64() {
-        let mut buf = [0i8; FD_BASE58_ENCODED_64_SZ];
+        let mut buf = [0i8; BASE58_ENCODED_64_SZ];
         let mut len = 0u8;
         let mut bytes = [0u8; 64];
         assert_eq!(
