@@ -14,7 +14,7 @@ pub(crate) fn fd_ulong_find_lsb_w_default(x: u64, d: i32) -> i32 {
         #[cfg(target_feature = "bmi1")]
         {
             unsafe {
-                std::arch::asm!(
+                core::arch::asm!(
                     "tzcnt {0}, {0}",
                     "cmovb {1}, {0}",
                     inout(reg) r.u,
@@ -26,7 +26,7 @@ pub(crate) fn fd_ulong_find_lsb_w_default(x: u64, d: i32) -> i32 {
         #[cfg(not(target_feature = "bmi1"))]
         {
             unsafe {
-                std::arch::asm!(
+                core::arch::asm!(
                     "bsf {0}, {0}",
                     "cmovz {1}, {0}",
                     inout(reg) r.u,

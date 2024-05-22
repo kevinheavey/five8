@@ -1,5 +1,6 @@
+#![cfg_attr(not(feature = "std"), no_std)]
 #[cfg(target_feature = "avx2")]
-use std::arch::x86_64::{
+use core::arch::x86_64::{
     __m128i, _mm256_extractf128_si256, _mm256_maskstore_epi64, _mm_bslli_si128, _mm_storeu_si128,
 };
 
@@ -234,7 +235,7 @@ fn fd_uint_load_4(p: *const u8) -> u32 {
         // Unsafe block needed for dereferencing raw pointer
         let p_t = &mut t as *mut u32;
         let p_p = p as *const u32;
-        std::ptr::copy_nonoverlapping(p_p, p_t, 1);
+        core::ptr::copy_nonoverlapping(p_p, p_t, 1);
     }
     t
 }
@@ -643,7 +644,7 @@ fn make_binary_array<const BINARY_SZ: usize>(bytes: *const u8) -> [u32; BINARY_S
     let mut binary = [0u32; BINARY_SZ];
     for i in 0..BINARY_SZ {
         binary[i] = fd_uint_bswap(fd_uint_load_4(unsafe {
-            bytes.offset((i * std::mem::size_of::<u32>()) as isize)
+            bytes.offset((i * core::mem::size_of::<u32>()) as isize)
         }));
     }
     binary
@@ -670,8 +671,10 @@ pub enum DecodeError {
     WhatToCallThisToo,
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for DecodeError {}
 
+#[cfg(feature = "std")]
 impl core::fmt::Display for DecodeError {
     fn fmt(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
@@ -829,7 +832,7 @@ mod tests {
         buf: &mut [i8; FD_BASE58_ENCODED_32_SZ],
     ) -> String {
         let res = fd_base58_encode_32(bytes.as_ptr(), len, buf.as_mut_ptr());
-        let as_slice = unsafe { std::slice::from_raw_parts(res, *len as usize) };
+        let as_slice = unsafe { core::slice::from_raw_parts(res, *len as usize) };
         let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
         collected
     }
@@ -857,7 +860,7 @@ mod tests {
         buf: &mut [i8; FD_BASE58_ENCODED_64_SZ],
     ) -> String {
         let res = fd_base58_encode_64(bytes.as_ptr(), len, buf.as_mut_ptr());
-        let as_slice = unsafe { std::slice::from_raw_parts(res, *len as usize) };
+        let as_slice = unsafe { core::slice::from_raw_parts(res, *len as usize) };
         let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
         collected
     }
@@ -924,7 +927,7 @@ mod tests {
         assert_eq!(unsafe { *encoded_ptr.offset(31) }, b'2');
         let mut decoded = [0u8; 32];
         let res = fd_base58_decode_32(encoded_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
-        let as_slice = unsafe { std::slice::from_raw_parts(res, 32) };
+        let as_slice = unsafe { core::slice::from_raw_parts(res, 32) };
         let mut expected = [0u8; 32];
         expected[31] = 1;
         assert_eq!(as_slice, &expected);

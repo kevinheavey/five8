@@ -1,5 +1,5 @@
 use crate::bits_find_lsb::fd_ulong_find_lsb_w_default;
-use std::arch::x86_64::{
+use core::arch::x86_64::{
     __m256i, _mm256_add_epi8, _mm256_and_si256, _mm256_cmpeq_epi64, _mm256_cmpeq_epi8,
     _mm256_cmpgt_epi64, _mm256_cmpgt_epi8, _mm256_extractf128_si256, _mm256_loadu_si256,
     _mm256_movemask_epi8, _mm256_mul_epu32, _mm256_or_si256, _mm256_set1_epi64x, _mm256_set1_epi8,
@@ -355,7 +355,7 @@ pub(crate) fn wl_ld(p: *const i64) -> __m256i {
 mod tests {
     use super::*;
 
-    use std::arch::x86_64::{_mm256_load_si256, _mm256_store_si256};
+    use core::arch::x86_64::{_mm256_load_si256, _mm256_store_si256};
 
     fn wuc_ld(p: *const u8) -> __m256i {
         unsafe { _mm256_load_si256(p as *const __m256i) }
