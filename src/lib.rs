@@ -13,6 +13,9 @@ use avx::{
     wl_bcast, wl_eq, wl_gt, wl_ld, wl_shl, wl_shru, wl_shru_vector, wuc_ldu, wuc_stu,
 };
 
+#[cfg(target_feature = "avx2")]
+mod bits_find_lsb;
+
 const FD_BASE58_ENCODED_32_LEN: usize = 44; /* Computed as ceil(log_58(256^32 - 1)) */
 const FD_BASE58_ENCODED_64_LEN: usize = 88; /* Computed as ceil(log_58(256^64 - 1)) */
 const FD_BASE58_ENCODED_32_SZ: usize = FD_BASE58_ENCODED_32_LEN + 1; /* Including the nul terminator */

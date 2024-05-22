@@ -1,3 +1,4 @@
+use crate::bits_find_lsb::fd_ulong_find_lsb_w_default;
 use std::arch::x86_64::{
     __m256i, _mm256_add_epi8, _mm256_and_si256, _mm256_cmpeq_epi64, _mm256_cmpeq_epi8,
     _mm256_cmpgt_epi64, _mm256_cmpgt_epi8, _mm256_extractf128_si256, _mm256_load_si256,
@@ -251,12 +252,7 @@ pub(crate) fn count_leading_zeros_64(in0: WucT, in1: WucT) -> u64 {
     let mask1 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in1, _mm256_setzero_si256())) }
         as u32 as u64;
     let mask = !((mask1 << 32) | mask0);
-    // todo port the optimised fd_ulong_find_lsb_w_default
-    if mask == 0 {
-        64
-    } else {
-        mask.trailing_zeros() as u64
-    }
+    fd_ulong_find_lsb_w_default(mask, 64) as u64
 }
 
 /* ten_per_slot_down_{32,64}: Packs {45,90} raw base58 digits stored in
