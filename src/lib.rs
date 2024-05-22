@@ -2,6 +2,7 @@
 use std::arch::x86_64::{
     __m128i, _mm256_extractf128_si256, _mm256_maskstore_epi64, _mm_bslli_si128, _mm_storeu_si128,
 };
+use std::ptr;
 
 #[cfg(target_feature = "avx2")]
 mod avx;
@@ -643,6 +644,125 @@ fn make_binary_array<const BINARY_SZ: usize>(bytes: *const u8) -> [u32; BINARY_S
     binary
 }
 
+#[inline(always)]
+#[cold]
+fn cold() {}
+
+#[inline(always)]
+fn unlikely(b: bool) -> bool {
+    if b {
+        cold()
+    }
+    b
+}
+
+pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> *mut u8 {
+    /* Validate string and count characters before the nul terminator */
+    let mut char_cnt = 0usize;
+    while char_cnt < FD_BASE58_ENCODED_32_SZ {
+        let c = unsafe { *encoded.offset(char_cnt as isize) };
+        if c == 0 {
+            break;
+        }
+        println!("c: {c}");
+        /* If c<'1', this will underflow and idx will be huge */
+        let idx = c as u8 as u64 - BASE58_INVERSE_TABLE_OFFSET as u64;
+        let idx = idx.min(BASE58_INVERSE_TABLE_SENTINEL as u64);
+        char_cnt += 1;
+        if unlikely(BASE58_INVERSE[idx as usize] == BASE58_INVALID_CHAR) {
+            println!("idx: {idx}");
+            println!("char_cnt: {char_cnt}");
+            // println!("c: {c}");
+            println!("returning null at first opportunity");
+            return ptr::null_mut();
+        }
+    }
+    if unlikely(char_cnt == FD_BASE58_ENCODED_32_SZ) {
+        /* too long */
+        return ptr::null_mut();
+    }
+    /* X = sum_i raw_base58[i] * 58^(RAW58_SZ-1-i) */
+    let mut raw_base58 = [0u8; RAW58_SZ_32];
+    /* Prepend enough 0s to make it exactly RAW58_SZ characters */
+    let prepend_0 = RAW58_SZ_32 - char_cnt;
+    for j in 0..RAW58_SZ_32 {
+        raw_base58[j] = if j < prepend_0 {
+            0
+        } else {
+            BASE58_INVERSE[(unsafe { *encoded.offset((j - prepend_0) as isize) }
+                - BASE58_INVERSE_TABLE_OFFSET as i8) as usize]
+        };
+    }
+    /* Convert to the intermediate format (base 58^5):
+    X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i)) */
+    let mut intermediate = [0u64; INTERMEDIATE_SZ_32];
+    for i in 0..INTERMEDIATE_SZ_32 {
+        intermediate[i] = raw_base58[5 * i + 0] as u64 * 11316496
+            + raw_base58[5 * i + 1] as u64 * 195112
+            + raw_base58[5 * i + 2] as u64 * 3364
+            + raw_base58[5 * i + 3] as u64 * 58
+            + raw_base58[5 * i + 4] as u64 * 1;
+    }
+    /* Using the table, convert to overcomplete base 2^32 (terms can be
+    larger than 2^32).  We need to be careful about overflow.
+
+    For N==32, the largest anything in binary can get is binary[7]:
+    even if intermediate[i]==58^5-1 for all i, then binary[7] < 2^63.
+
+    For N==64, the largest anything in binary can get is binary[13]:
+    even if intermediate[i]==58^5-1 for all i, then binary[13] <
+    2^63.998.  Hanging in there, just by a thread! */
+    let mut binary = [0u64; BINARY_SZ_32];
+    for j in 0..BINARY_SZ_32 {
+        let mut acc = 0u64;
+        for i in 0..INTERMEDIATE_SZ_32 {
+            acc += intermediate[i] * DEC_TABLE_32[i][j] as u64;
+        }
+        binary[j] = acc;
+    }
+    /* Make sure each term is less than 2^32.
+
+    For N==32, we have plenty of headroom in binary, so overflow is
+    not a concern this time.
+
+    For N==64, even if we add 2^32 to binary[13], it is still 2^63.998,
+    so this won't overflow. */
+    for i in (1..BINARY_SZ_32).rev() {
+        binary[i - 1] += binary[i] >> 32;
+        binary[i] &= 0xFFFFFFFF;
+    }
+    /* If the largest term is 2^32 or bigger, it means N is larger than
+    what can fit in BYTE_CNT bytes.  This can be triggered, by passing
+    a base58 string of all 'z's for example. */
+    if unlikely(binary[0] > 0xFFFFFFFF) {
+        return ptr::null_mut();
+    }
+    /* Convert each term to big endian for the final output */
+    let out_as_uint = out as *mut u32;
+    for i in 0..BINARY_SZ_32 {
+        unsafe {
+            *out_as_uint.add(i) = fd_uint_bswap(binary[i] as u32);
+        }
+    }
+    /* Make sure the encoded version has the same number of leading '1's
+    as the decoded version has leading 0s. The check doesn't read past
+    the end of encoded, because '\0' != '1', so it will return NULL. */
+    let mut leading_zero_cnt = 0u64;
+    while leading_zero_cnt < N_32 as u64 {
+        if unsafe { *out.offset(leading_zero_cnt as isize) != 0 } {
+            break;
+        }
+        if unlikely(unsafe { *encoded.offset(leading_zero_cnt as isize) != ('1' as i8) }) {
+            return ptr::null_mut();
+        }
+        leading_zero_cnt += 1;
+    }
+    if unlikely(unsafe { *encoded.offset(leading_zero_cnt as isize) == ('1' as i8) }) {
+        return ptr::null_mut();
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -709,6 +829,21 @@ mod tests {
             "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi"
         );
         assert_eq!(len, 43);
+    }
+
+    #[test]
+    fn test_base58_decode_32() {
+        let encoded = b"11111111111111111111111111111112\0";
+        let encoded_ptr = encoded.as_ptr();
+        assert_eq!(unsafe { *encoded_ptr.offset(31) }, b'2');
+        let mut decoded = [0u8; 32];
+        let res = fd_base58_decode_32(encoded_ptr as *const i8, decoded.as_mut_ptr());
+        assert!(!res.is_null());
+        let as_slice = unsafe { std::slice::from_raw_parts(res, 32) };
+        let mut expected = [0u8; 32];
+        expected[31] = 1;
+        assert_eq!(as_slice, &expected);
+        assert_eq!(as_slice, &decoded);
     }
 
     #[test]
