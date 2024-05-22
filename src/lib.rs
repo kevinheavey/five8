@@ -661,8 +661,35 @@ fn unlikely(b: bool) -> bool {
     b
 }
 
+#[derive(Debug)]
+pub enum DecodeError {
+    InvalidChar(i8),
+    TooLong,
+    LargestTermTooHigh,
+    WhatToCallThis,
+    WhatToCallThisToo,
+}
+
+impl std::error::Error for DecodeError {}
+
+impl core::fmt::Display for DecodeError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            DecodeError::InvalidChar(c) => {
+                ::core::write!(formatter, "Illegal base58 char number: {}", c)
+            }
+            DecodeError::TooLong {} => formatter.write_str("Base58 string too long"),
+            DecodeError::LargestTermTooHigh {} => {
+                formatter.write_str("Largest term greater than 2^32")
+            }
+            DecodeError::WhatToCallThis {} => formatter.write_str("What to call this"),
+            DecodeError::WhatToCallThisToo {} => formatter.write_str("What to call this too"),
+        }
+    }
+}
+
 #[inline]
-pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> {
+pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Result<*mut u8, DecodeError> {
     fd_base58_decode::<FD_BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32, N_32>(
         encoded,
         out,
@@ -671,7 +698,7 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> 
 }
 
 #[inline]
-pub fn fd_base58_decode_64(encoded: *const i8, out: *mut u8) -> Option<*mut u8> {
+pub fn fd_base58_decode_64(encoded: *const i8, out: *mut u8) -> Result<*mut u8, DecodeError> {
     fd_base58_decode::<FD_BASE58_ENCODED_64_SZ, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64, N_64>(
         encoded,
         out,
@@ -690,7 +717,7 @@ fn fd_base58_decode<
     encoded: *const i8,
     out: *mut u8,
     dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
-) -> Option<*mut u8> {
+) -> Result<*mut u8, DecodeError> {
     /* Validate string and count characters before the nul terminator */
     let mut char_cnt = 0usize;
     while char_cnt < ENCODED_SZ {
@@ -703,12 +730,12 @@ fn fd_base58_decode<
         let idx = idx.min(BASE58_INVERSE_TABLE_SENTINEL as u64);
         char_cnt += 1;
         if unlikely(BASE58_INVERSE[idx as usize] == BASE58_INVALID_CHAR) {
-            return None;
+            return Err(DecodeError::InvalidChar(c));
         }
     }
     if unlikely(char_cnt == ENCODED_SZ) {
         /* too long */
-        return None;
+        return Err(DecodeError::TooLong);
     }
     /* X = sum_i raw_base58[i] * 58^(RAW58_SZ-1-i) */
     let mut raw_base58 = [0u8; RAW58_SZ];
@@ -764,7 +791,7 @@ fn fd_base58_decode<
     what can fit in BYTE_CNT bytes.  This can be triggered, by passing
     a base58 string of all 'z's for example. */
     if unlikely(binary[0] > 0xFFFFFFFF) {
-        return None;
+        return Err(DecodeError::LargestTermTooHigh);
     }
     /* Convert each term to big endian for the final output */
     let out_as_uint = out as *mut u32;
@@ -782,14 +809,14 @@ fn fd_base58_decode<
             break;
         }
         if unlikely(unsafe { *encoded.offset(leading_zero_cnt as isize) != ('1' as i8) }) {
-            return None;
+            return Err(DecodeError::WhatToCallThis);
         }
         leading_zero_cnt += 1;
     }
     if unlikely(unsafe { *encoded.offset(leading_zero_cnt as isize) == ('1' as i8) }) {
-        return None;
+        return Err(DecodeError::WhatToCallThisToo);
     }
-    Some(out)
+    Ok(out)
 }
 
 #[cfg(test)]
