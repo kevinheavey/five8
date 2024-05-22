@@ -220,7 +220,7 @@ pub(crate) fn count_leading_zeros_26(in_: WucT) -> u64 {
     let mask0 = unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(in_, _mm256_setzero_si256())) }
         as u32 as u64;
     let mask = MASK_LSB_27 ^ (mask0 & MASK_LSB_26); /* Flips the low 26 bits and puts a 1 in bit 26 */
-    mask.leading_zeros() as u64
+    mask.trailing_zeros() as u64
 }
 
 #[inline(always)]
@@ -255,7 +255,7 @@ pub(crate) fn count_leading_zeros_64(in0: WucT, in1: WucT) -> u64 {
     if mask == 0 {
         64
     } else {
-        mask.leading_zeros() as u64
+        mask.trailing_zeros() as u64
     }
 }
 
@@ -371,8 +371,6 @@ pub(crate) fn wl_ld(p: *const i64) -> __m256i {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::align_of_val;
-
     use super::*;
 
     #[test]
@@ -420,5 +418,31 @@ mod tests {
             1
         );
         unsafe { *buf_ptr.add(1) = 255 };
+    }
+
+    #[repr(C, align(32))]
+    struct UcharArr32<const N: usize>([u8; N]);
+
+    #[test]
+    fn test_ten_per_slot_down_64() {
+        let mut in_ = UcharArr32([0; 32 * 5]);
+        let mut out = UcharArr32([0; 32 * 3]);
+        for i in 0..90 {
+            in_.0[16 * (i / 10) + (i % 10)] = i as u8 + 1;
+        }
+        let in_ptr = in_.0.as_ptr() as *const u8;
+        let a = wuc_ld(in_ptr);
+        let b = wuc_ld(unsafe { in_ptr.offset(32) });
+        let c = wuc_ld(unsafe { in_ptr.offset(64) });
+        let d = wuc_ld(unsafe { in_ptr.offset(96) });
+        let e = wuc_ld(unsafe { in_ptr.offset(128) });
+        let (out0, out1, out2) = ten_per_slot_down_64(a, b, c, d, e);
+        let out_ptr = out.0.as_mut_ptr() as *mut u8;
+        wuc_st(out_ptr, out0);
+        wuc_st(unsafe { out_ptr.offset(32) }, out1);
+        wuc_st(unsafe { out_ptr.offset(64) }, out2);
+        for i in 0..90 {
+            assert_eq!(out.0[i], i as u8 + 1);
+        }
     }
 }

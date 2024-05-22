@@ -719,11 +719,28 @@ mod tests {
         );
         assert_eq!(len[0], 64);
         bytes[63] += 1;
-        println!("bytes: {bytes:?}");
         assert_eq!(
             &encode_64_to_string(&bytes, &mut len, &mut buf),
             "1111111111111111111111111111111111111111111111111111111111111112"
         );
         assert_eq!(len[0], 64);
+        bytes[62] += 1;
+        assert_eq!(
+            &encode_64_to_string(&bytes, &mut len, &mut buf),
+            "111111111111111111111111111111111111111111111111111111111111115S"
+        );
+        assert_eq!(len[0], 64);
+        let mut bytes = [255; 64];
+        assert_eq!(
+            &encode_64_to_string(&bytes, &mut len, &mut buf),
+            "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+        );
+        assert_eq!(len[0], 88);
+        bytes[63] -= 1;
+        assert_eq!(
+            &encode_64_to_string(&bytes, &mut len, &mut buf),
+            "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roP"
+        );
+        assert_eq!(len[0], 88);
     }
 }
