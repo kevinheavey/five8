@@ -2,7 +2,6 @@
 use std::arch::x86_64::{
     __m128i, _mm256_extractf128_si256, _mm256_maskstore_epi64, _mm_bslli_si128, _mm_storeu_si128,
 };
-use std::ptr;
 
 #[cfg(target_feature = "avx2")]
 mod avx;
@@ -656,7 +655,7 @@ fn unlikely(b: bool) -> bool {
     b
 }
 
-pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> *mut u8 {
+pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> Option<*mut u8> {
     /* Validate string and count characters before the nul terminator */
     let mut char_cnt = 0usize;
     while char_cnt < FD_BASE58_ENCODED_32_SZ {
@@ -670,16 +669,13 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> *mut u8 {
         let idx = idx.min(BASE58_INVERSE_TABLE_SENTINEL as u64);
         char_cnt += 1;
         if unlikely(BASE58_INVERSE[idx as usize] == BASE58_INVALID_CHAR) {
-            println!("idx: {idx}");
-            println!("char_cnt: {char_cnt}");
-            // println!("c: {c}");
             println!("returning null at first opportunity");
-            return ptr::null_mut();
+            return None;
         }
     }
     if unlikely(char_cnt == FD_BASE58_ENCODED_32_SZ) {
         /* too long */
-        return ptr::null_mut();
+        return None;
     }
     /* X = sum_i raw_base58[i] * 58^(RAW58_SZ-1-i) */
     let mut raw_base58 = [0u8; RAW58_SZ_32];
@@ -735,7 +731,7 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> *mut u8 {
     what can fit in BYTE_CNT bytes.  This can be triggered, by passing
     a base58 string of all 'z's for example. */
     if unlikely(binary[0] > 0xFFFFFFFF) {
-        return ptr::null_mut();
+        return None;
     }
     /* Convert each term to big endian for the final output */
     let out_as_uint = out as *mut u32;
@@ -753,14 +749,14 @@ pub fn fd_base58_decode_32(encoded: *const i8, out: *mut u8) -> *mut u8 {
             break;
         }
         if unlikely(unsafe { *encoded.offset(leading_zero_cnt as isize) != ('1' as i8) }) {
-            return ptr::null_mut();
+            return None;
         }
         leading_zero_cnt += 1;
     }
     if unlikely(unsafe { *encoded.offset(leading_zero_cnt as isize) == ('1' as i8) }) {
-        return ptr::null_mut();
+        return None;
     }
-    out
+    Some(out)
 }
 
 #[cfg(test)]
@@ -837,8 +833,7 @@ mod tests {
         let encoded_ptr = encoded.as_ptr();
         assert_eq!(unsafe { *encoded_ptr.offset(31) }, b'2');
         let mut decoded = [0u8; 32];
-        let res = fd_base58_decode_32(encoded_ptr as *const i8, decoded.as_mut_ptr());
-        assert!(!res.is_null());
+        let res = fd_base58_decode_32(encoded_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
         let as_slice = unsafe { std::slice::from_raw_parts(res, 32) };
         let mut expected = [0u8; 32];
         expected[31] = 1;
