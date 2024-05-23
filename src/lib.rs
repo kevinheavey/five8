@@ -3,7 +3,7 @@
 use core::arch::x86_64::{
     __m128i, _mm256_extractf128_si256, _mm256_maskstore_epi64, _mm_bslli_si128, _mm_storeu_si128,
 };
-use core::mem::size_of;
+use core::{array::from_fn, mem::size_of};
 
 #[cfg(target_feature = "avx2")]
 mod avx;
@@ -342,8 +342,12 @@ pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut 
         }
     }
     /* Mini-reduction */
-    unsafe { *intermediate.0.get_unchecked_mut(15) += intermediate.0.get_unchecked(16) / R1DIV;}
-    unsafe { *intermediate.0.get_unchecked_mut(16) %= R1DIV;}
+    unsafe {
+        *intermediate.0.get_unchecked_mut(15) += intermediate.0.get_unchecked(16) / R1DIV;
+    }
+    unsafe {
+        *intermediate.0.get_unchecked_mut(16) %= R1DIV;
+    }
     /* Finish iterations */
     for i in 8..BINARY_SZ_64 {
         for j in 0..INTERMEDIATE_SZ_64 - 1 {
@@ -664,14 +668,9 @@ fn make_binary_array<const BINARY_SZ: usize>(bytes: *const u8) -> [u32; BINARY_S
 
     /* Convert N to 32-bit limbs:
     X = sum_i binary[i] * 2^(32*(BINARY_SZ-1-i)) */
-    let mut binary = [0u32; BINARY_SZ];
-    for i in 0..BINARY_SZ {
-        unsafe {
-            *binary.get_unchecked_mut(i) =
-                fd_uint_bswap(fd_uint_load_4(bytes.add(i * core::mem::size_of::<u32>())));
-        }
-    }
-    binary
+    from_fn(|i| unsafe {
+        fd_uint_bswap(fd_uint_load_4(bytes.add(i * core::mem::size_of::<u32>())))
+    })
 }
 
 #[inline(always)]
@@ -765,32 +764,25 @@ fn base58_decode<
         return Err(DecodeError::TooLong);
     }
     /* X = sum_i raw_base58[i] * 58^(RAW58_SZ-1-i) */
-    let mut raw_base58 = [0u8; RAW58_SZ];
     /* Prepend enough 0s to make it exactly RAW58_SZ characters */
     let prepend_0 = RAW58_SZ - char_cnt;
-    for j in 0..RAW58_SZ {
-        let val = if j < prepend_0 {
+    let raw_base58: [u8; RAW58_SZ] = from_fn(|j| {
+        if j < prepend_0 {
             0
         } else {
             BASE58_INVERSE[(unsafe { *encoded.get_unchecked(j - prepend_0) }
                 - BASE58_INVERSE_TABLE_OFFSET) as usize]
-        };
-        unsafe {
-            *raw_base58.get_unchecked_mut(j) = val;
         }
-    }
+    });
     /* Convert to the intermediate format (base 58^5):
     X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i)) */
-    let mut intermediate = [0u64; INTERMEDIATE_SZ];
-    for i in 0..INTERMEDIATE_SZ {
-        unsafe {
-            *intermediate.get_unchecked_mut(i) = *raw_base58.get_unchecked(5 * i) as u64 * 11316496
-                + *raw_base58.get_unchecked(5 * i + 1) as u64 * 195112
-                + *raw_base58.get_unchecked(5 * i + 2) as u64 * 3364
-                + *raw_base58.get_unchecked(5 * i + 3) as u64 * 58
-                + *raw_base58.get_unchecked(5 * i + 4) as u64;
-        }
-    }
+    let intermediate: [u64; INTERMEDIATE_SZ] = from_fn(|i| unsafe {
+        *raw_base58.get_unchecked(5 * i) as u64 * 11316496
+            + *raw_base58.get_unchecked(5 * i + 1) as u64 * 195112
+            + *raw_base58.get_unchecked(5 * i + 2) as u64 * 3364
+            + *raw_base58.get_unchecked(5 * i + 3) as u64 * 58
+            + *raw_base58.get_unchecked(5 * i + 4) as u64
+    });
     /* Using the table, convert to overcomplete base 2^32 (terms can be
     larger than 2^32).  We need to be careful about overflow.
 
@@ -800,16 +792,15 @@ fn base58_decode<
     For N==64, the largest anything in binary can get is binary[13]:
     even if intermediate[i]==58^5-1 for all i, then binary[13] <
     2^63.998.  Hanging in there, just by a thread! */
-    let mut binary = [0u64; BINARY_SZ];
-    for j in 0..BINARY_SZ {
+    let mut binary: [u64; BINARY_SZ] = from_fn(|j| {
         let mut acc = 0u64;
         for i in 0..INTERMEDIATE_SZ {
             acc += unsafe {
                 intermediate.get_unchecked(i) * *dec_table.get_unchecked(i).get_unchecked(j) as u64
             };
         }
-        unsafe { *binary.get_unchecked_mut(j) = acc };
-    }
+        acc
+    });
     /* Make sure each term is less than 2^32.
 
     For N==32, we have plenty of headroom in binary, so overflow is
@@ -828,7 +819,7 @@ fn base58_decode<
     /* If the largest term is 2^32 or bigger, it means N is larger than
     what can fit in BYTE_CNT bytes.  This can be triggered, by passing
     a base58 string of all 'z's for example. */
-    if unlikely(unsafe { *binary.get_unchecked(0) } > 0xFFFFFFFF ) {
+    if unlikely(unsafe { *binary.get_unchecked(0) } > 0xFFFFFFFF) {
         return Err(DecodeError::LargestTermTooHigh);
     }
     /* Convert each term to big endian for the final output */
