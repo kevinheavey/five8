@@ -3,6 +3,7 @@
 use core::arch::x86_64::{
     __m128i, _mm256_extractf128_si256, _mm256_maskstore_epi64, _mm_bslli_si128, _mm_storeu_si128,
 };
+use core::mem::size_of;
 
 #[cfg(target_feature = "avx2")]
 mod avx;
@@ -804,12 +805,11 @@ fn base58_decode<
         return Err(DecodeError::LargestTermTooHigh);
     }
     /* Convert each term to big endian for the final output */
-    let mut out_as_uint: [u32; BINARY_SZ] = [0u32; BINARY_SZ];
     for i in 0..BINARY_SZ {
         let swapped = unsafe { fd_uint_bswap(*binary.get_unchecked(i) as u32) };
         let swapped_bytes = swapped.to_ne_bytes();
-        println!("swapped_bytes: {swapped_bytes:?}");
-        out[i..i+4].copy_from_slice(&swapped_bytes);
+        let idx = i * size_of::<u32>();
+        out[idx..idx+size_of::<u32>()].copy_from_slice(&swapped_bytes);
     }
     /* Make sure the encoded version has the same number of leading '1's
     as the decoded version has leading 0s. The check doesn't read past
@@ -817,7 +817,6 @@ fn base58_decode<
     let mut leading_zero_cnt = 0u64;
     while leading_zero_cnt < N as u64 {
         let out_val = unsafe { *out.get_unchecked(leading_zero_cnt as usize)};
-        println!("leading_zero_cnt: {leading_zero_cnt}, out_val: {out_val}");
         if out_val != 0 {
             break;
         }
@@ -827,7 +826,6 @@ fn base58_decode<
         leading_zero_cnt += 1;
     }
     if unlikely(unsafe { *encoded.get_unchecked(leading_zero_cnt as usize) == ('1' as i8) }) {
-        println!("leading_zero_cnt after while: {leading_zero_cnt}");
         return Err(DecodeError::WhatToCallThisToo);
     }
     Ok(())
@@ -968,7 +966,6 @@ mod tests {
     fn test_base58_decode_32() {
         let encoded = b"11111111111111111111111111111112\0";
         let encoded_i8: Vec<i8> = encoded.into_iter().map(|x| *x as i8).collect();
-        println!("encoded_i8: {encoded_i8:?}");
         let encoded_ptr = encoded.as_ptr();
         assert_eq!(unsafe { *encoded_ptr.offset(31) }, b'2');
         let mut decoded = [0u8; 32];
@@ -1026,7 +1023,7 @@ mod tests {
 
     #[test]
     fn test_decode_error_32() {
-        // check_bad_decode_32(DecodeError::TooLong, "1");
+        check_bad_decode_32(DecodeError::TooLong, "1");
         // check_bad_decode_32(DecodeError::TooLong, "1111111111111111111111111111111");
         // check_bad_decode_32(DecodeError::TooLong, "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJz");
         // check_bad_decode_32(DecodeError::TooLong, "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL");
