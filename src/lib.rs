@@ -854,6 +854,23 @@ mod tests {
         assert_eq!(&decoded, bytes);
     }
 
+    fn check_encode_decode_64(
+        bytes: &[u8; 64],
+        len: &mut u8,
+        buf: &mut [i8; BASE58_ENCODED_64_SZ],
+        expected_len: u8,
+        encoded: &str,
+    ) {
+        assert_eq!(&encode_64_to_string(&bytes, len, buf), encoded);
+        assert_eq!(*len, expected_len);
+        let mut null_terminated = encoded.as_bytes().to_vec();
+        null_terminated.push(b'\0');
+        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
+        let mut decoded = [0u8; 64];
+        base58_decode_64(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
+        assert_eq!(&decoded, bytes);
+    }
+
     fn encode_64_to_string(
         bytes: &[u8; 64],
         len: &mut u8,
@@ -935,38 +952,48 @@ mod tests {
     }
 
     #[test]
-    fn test_base58_encode_64() {
+    fn test_encode_decode_64() {
         let mut buf = [0i8; BASE58_ENCODED_64_SZ];
         let mut len = 0u8;
         let mut bytes = [0u8; 64];
-        assert_eq!(
-            &encode_64_to_string(&bytes, &mut len, &mut buf),
-            "1111111111111111111111111111111111111111111111111111111111111111"
+        check_encode_decode_64(
+            &bytes,
+            &mut len,
+            &mut buf,
+            64,
+            "1111111111111111111111111111111111111111111111111111111111111111",
         );
-        assert_eq!(len, 64);
         bytes[63] += 1;
-        assert_eq!(
-            &encode_64_to_string(&bytes, &mut len, &mut buf),
-            "1111111111111111111111111111111111111111111111111111111111111112"
+        check_encode_decode_64(
+            &bytes,
+            &mut len,
+            &mut buf,
+            64,
+            "1111111111111111111111111111111111111111111111111111111111111112",
         );
-        assert_eq!(len, 64);
         bytes[62] += 1;
-        assert_eq!(
-            &encode_64_to_string(&bytes, &mut len, &mut buf),
-            "111111111111111111111111111111111111111111111111111111111111115S"
+        check_encode_decode_64(
+            &bytes,
+            &mut len,
+            &mut buf,
+            64,
+            "111111111111111111111111111111111111111111111111111111111111115S",
         );
-        assert_eq!(len, 64);
         let mut bytes = [255; 64];
-        assert_eq!(
-            &encode_64_to_string(&bytes, &mut len, &mut buf),
-            "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+        check_encode_decode_64(
+            &bytes,
+            &mut len,
+            &mut buf,
+            88,
+            "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ",
         );
-        assert_eq!(len, 88);
         bytes[63] -= 1;
-        assert_eq!(
-            &encode_64_to_string(&bytes, &mut len, &mut buf),
-            "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roP"
+        check_encode_decode_64(
+            &bytes,
+            &mut len,
+            &mut buf,
+            88,
+            "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roP",
         );
-        assert_eq!(len, 88);
     }
 }
