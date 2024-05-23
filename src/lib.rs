@@ -1072,7 +1072,7 @@ mod tests {
         check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QWabc");
         // check_bad_decode_64(DecodeError::TooLong, "11111111111111111111111111111111111111111111111111111111111111111");
         check_bad_decode_64(
-            DecodeError::LargestTermTooHigh, 
+            DecodeError::LargestTermTooHigh,
             "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roS"
         ); /* 2nd-smallest 65 byte value that doesn't start with 0x0 */
 
