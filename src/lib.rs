@@ -695,24 +695,20 @@ impl core::fmt::Display for DecodeError {
 
 #[inline]
 pub fn base58_decode_32(encoded: &[i8], out: &mut [u8; N_32]) -> Result<(), DecodeError> {
-    base58_decode::<
-        BASE58_ENCODED_32_SZ,
-        RAW58_SZ_32,
-        INTERMEDIATE_SZ_32,
-        BINARY_SZ_32,
-        N_32,
-    >(encoded, out, &DEC_TABLE_32)
+    base58_decode::<BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32, N_32>(
+        encoded,
+        out,
+        &DEC_TABLE_32,
+    )
 }
 
 #[inline]
 pub fn base58_decode_64(encoded: &[i8], out: &mut [u8; N_64]) -> Result<(), DecodeError> {
-    base58_decode::<
-        BASE58_ENCODED_64_SZ,
-        RAW58_SZ_64,
-        INTERMEDIATE_SZ_64,
-        BINARY_SZ_64,
-        N_64,
-    >(encoded, out, &DEC_TABLE_64)
+    base58_decode::<BASE58_ENCODED_64_SZ, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64, N_64>(
+        encoded,
+        out,
+        &DEC_TABLE_64,
+    )
 }
 
 #[inline]
@@ -809,14 +805,14 @@ fn base58_decode<
         let swapped = unsafe { fd_uint_bswap(*binary.get_unchecked(i) as u32) };
         let swapped_bytes = swapped.to_ne_bytes();
         let idx = i * size_of::<u32>();
-        out[idx..idx+size_of::<u32>()].copy_from_slice(&swapped_bytes);
+        out[idx..idx + size_of::<u32>()].copy_from_slice(&swapped_bytes);
     }
     /* Make sure the encoded version has the same number of leading '1's
     as the decoded version has leading 0s. The check doesn't read past
     the end of encoded, because '\0' != '1', so it will return NULL. */
     let mut leading_zero_cnt = 0u64;
     while leading_zero_cnt < N as u64 {
-        let out_val = unsafe { *out.get_unchecked(leading_zero_cnt as usize)};
+        let out_val = unsafe { *out.get_unchecked(leading_zero_cnt as usize) };
         if out_val != 0 {
             break;
         }
@@ -855,7 +851,8 @@ mod tests {
     ) {
         assert_eq!(&encode_32_to_string(&bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
-        let mut null_terminated: Vec<i8> = encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
+        let mut null_terminated: Vec<i8> =
+            encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
         null_terminated.push(b'\0' as i8);
         let mut decoded = [0u8; 32];
         base58_decode_32(&null_terminated, &mut decoded).unwrap();
@@ -871,7 +868,8 @@ mod tests {
     ) {
         assert_eq!(&encode_64_to_string(&bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
-        let mut null_terminated: Vec<i8> = encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
+        let mut null_terminated: Vec<i8> =
+            encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
         null_terminated.push(b'\0' as i8);
         let mut decoded = [0u8; 64];
         base58_decode_64(&null_terminated, &mut decoded).unwrap();
@@ -879,20 +877,20 @@ mod tests {
     }
 
     fn check_bad_decode_32(expected_err: DecodeError, encoded: &str) {
-        let mut null_terminated: Vec<i8> = encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
+        let mut null_terminated: Vec<i8> =
+            encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
         null_terminated.push(b'\0' as i8);
         let mut decoded = [0u8; 32];
-        let err =
-            base58_decode_32(&null_terminated, &mut decoded).unwrap_err();
+        let err = base58_decode_32(&null_terminated, &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
     }
 
     fn check_bad_decode_64(expected_err: DecodeError, encoded: &str) {
-        let mut null_terminated: Vec<i8> = encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
+        let mut null_terminated: Vec<i8> =
+            encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
         null_terminated.push(b'\0' as i8);
         let mut decoded = [0u8; 64];
-        let err =
-            base58_decode_64(&null_terminated, &mut decoded).unwrap_err();
+        let err = base58_decode_64(&null_terminated, &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
     }
 
@@ -1023,23 +1021,35 @@ mod tests {
 
     #[test]
     fn test_decode_error_32() {
-        check_bad_decode_32(DecodeError::TooLong, "1");
-        // check_bad_decode_32(DecodeError::TooLong, "1111111111111111111111111111111");
-        // check_bad_decode_32(DecodeError::TooLong, "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJz");
-        // check_bad_decode_32(DecodeError::TooLong, "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL");
+        check_bad_decode_32(DecodeError::WhatToCallThis, "1");
+        check_bad_decode_32(
+            DecodeError::WhatToCallThis,
+            "1111111111111111111111111111111",
+        );
+        check_bad_decode_32(
+            DecodeError::WhatToCallThis,
+            "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJz",
+        );
+        check_bad_decode_32(
+            DecodeError::WhatToCallThis,
+            "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL",
+        );
         check_bad_decode_32(
             DecodeError::TooLong,
             "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofLRda4",
         );
-        // check_bad_decode_32(DecodeError::TooLong, "111111111111111111111111111111111");
+        check_bad_decode_32(
+            DecodeError::WhatToCallThisToo,
+            "111111111111111111111111111111111",
+        );
         check_bad_decode_32(
             DecodeError::LargestTermTooHigh,
             "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFJ",
         ); /* 2nd-smallest 33 byte value that doesn't start with 0x0 */
-        // check_bad_decode_32(
-        //     DecodeError::TooLong,
-        //     "11aEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWx",
-        // );
+        check_bad_decode_32(
+            DecodeError::WhatToCallThisToo,
+            "11aEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWx",
+        );
         check_bad_decode_32(
             DecodeError::InvalidChar(48),
             "11111111111111111111111111111110",
@@ -1068,18 +1078,27 @@ mod tests {
 
     #[test]
     fn test_decode_error_64() {
-        // check_bad_decode_64(DecodeError::TooLong, "1");
-        // check_bad_decode_64(DecodeError::TooLong, "111111111111111111111111111111111111111111111111111111111111111");
-        // check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA");
-        // check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QW");
+        check_bad_decode_64(DecodeError::WhatToCallThis, "1");
+        check_bad_decode_64(
+            DecodeError::WhatToCallThis,
+            "111111111111111111111111111111111111111111111111111111111111111",
+        );
+        check_bad_decode_64(
+            DecodeError::WhatToCallThis,
+            "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA",
+        );
+        check_bad_decode_64(DecodeError::WhatToCallThis, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QW");
         check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QWabc");
-        // check_bad_decode_64(DecodeError::TooLong, "11111111111111111111111111111111111111111111111111111111111111111");
+        check_bad_decode_64(
+            DecodeError::WhatToCallThisToo,
+            "11111111111111111111111111111111111111111111111111111111111111111",
+        );
         check_bad_decode_64(
             DecodeError::LargestTermTooHigh,
             "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roS"
         ); /* 2nd-smallest 65 byte value that doesn't start with 0x0 */
 
-        // check_bad_decode_64(DecodeError::LargestTermTooHigh, "1114tjGcyzrfXw2deDmDAFFaFyss32WRgkYdDJuprrNEL8kc799TrHSQHfE9fv6ZDBUg2dsMJdfYr71hjE4EfjEN"); /* Start with too many '1's */
+        check_bad_decode_64(DecodeError::WhatToCallThisToo, "1114tjGcyzrfXw2deDmDAFFaFyss32WRgkYdDJuprrNEL8kc799TrHSQHfE9fv6ZDBUg2dsMJdfYr71hjE4EfjEN"); /* Start with too many '1's */
         check_bad_decode_64(
             DecodeError::InvalidChar(48),
             "1111111111111111111111111111111111111111111111111111111111111110",
