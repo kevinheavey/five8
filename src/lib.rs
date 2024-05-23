@@ -662,7 +662,7 @@ fn unlikely(b: bool) -> bool {
     b
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum DecodeError {
     InvalidChar(i8),
     TooLong,
@@ -800,7 +800,8 @@ fn base58_decode<
     let out_as_uint = out as *mut u32;
     for i in 0..BINARY_SZ {
         unsafe {
-            *out_as_uint.add(i) = fd_uint_bswap(binary[i] as u32);
+            let swapped = fd_uint_bswap(binary[i] as u32);
+            *out_as_uint.offset(i as isize) = swapped;
         }
     }
     /* Make sure the encoded version has the same number of leading '1's
@@ -869,6 +870,16 @@ mod tests {
         let mut decoded = [0u8; 64];
         base58_decode_64(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
         assert_eq!(&decoded, bytes);
+    }
+
+    fn check_bad_decode_64(expected_err: DecodeError, encoded: &str) {
+        let mut null_terminated = encoded.as_bytes().to_vec();
+        null_terminated.push(b'\0');
+        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
+        let mut decoded = [0u8; 64];
+        let err =
+            base58_decode_64(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap_err();
+        assert_eq!(err, expected_err);
     }
 
     fn encode_64_to_string(
@@ -995,5 +1006,10 @@ mod tests {
             88,
             "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roP",
         );
+    }
+
+    #[test]
+    fn test_decode_error_64() {
+        check_bad_decode_64(DecodeError::TooLong, "1");
     }
 }
