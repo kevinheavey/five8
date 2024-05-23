@@ -34,8 +34,8 @@ const BASE58_CHARS: [i8; 58] = [
     b'y' as i8, b'z' as i8,
 ];
 const BASE58_INVALID_CHAR: u8 = 255;
-const BASE58_INVERSE_TABLE_OFFSET: u8 = '1' as u8;
-const BASE58_INVERSE_TABLE_SENTINEL: u8 = 1 + ('z' as u8) - BASE58_INVERSE_TABLE_OFFSET;
+const BASE58_INVERSE_TABLE_OFFSET: u8 = b'1';
+const BASE58_INVERSE_TABLE_SENTINEL: u8 = 1 + b'z' - BASE58_INVERSE_TABLE_OFFSET;
 
 const BAD: u8 = BASE58_INVALID_CHAR;
 const BASE58_INVERSE: [u8; 75] = [
@@ -286,7 +286,7 @@ fn in_leading_0s_64_avx(bytes: *const u8) -> u64 {
 fn in_leading_0s_scalar<const BYTE_CNT: usize>(bytes: *const u8) -> usize {
     let mut in_leading_0s = 0;
     while in_leading_0s < BYTE_CNT {
-        if unsafe { bytes.add(in_leading_0s as usize).read() != 0 } {
+        if unsafe { bytes.add(in_leading_0s).read() != 0 } {
             break;
         }
         in_leading_0s += 1;
@@ -337,7 +337,7 @@ pub fn base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mu
     2^63.76, so no problems there. */
     for i in 0..8 {
         for j in 0..INTERMEDIATE_SZ_64 - 1 {
-            let multiplier = ENC_TABLE_64[i][j] as u64;
+            let multiplier = unsafe { *ENC_TABLE_64.get_unchecked(i).get_unchecked(j) } as u64;
             add_binary_to_intermediate(&mut intermediate, j, binary, i, multiplier);
         }
     }
@@ -347,7 +347,7 @@ pub fn base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mu
     /* Finish iterations */
     for i in 8..BINARY_SZ_64 {
         for j in 0..INTERMEDIATE_SZ_64 - 1 {
-            let multiplier = ENC_TABLE_64[i][j] as u64;
+            let multiplier = unsafe { *ENC_TABLE_64.get_unchecked(i).get_unchecked(j) as u64 };
             add_binary_to_intermediate(&mut intermediate, j, binary, i, multiplier);
         }
     }
@@ -450,7 +450,7 @@ pub fn base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mu
     let mut intermediate = init_intermediate_array::<INTERMEDIATE_SZ_W_PADDING_32>();
     for i in 0..BINARY_SZ_32 {
         for j in 0..INTERMEDIATE_SZ_32 - 1 {
-            let multiplier = ENC_TABLE_32[i][j] as u64;
+            let multiplier = unsafe { *ENC_TABLE_32.get_unchecked(i).get_unchecked(j) as u64 };
             add_binary_to_intermediate(&mut intermediate, j, binary, i, multiplier);
         }
     }
@@ -559,11 +559,11 @@ fn intermediate_to_base58_scalar<
         generates the single-op 64b x 64b -> 128b mul instruction.  This
         hurts the CPU's ability to take advantage of the ILP here. */
         let v = intermediate.0[i] as u32;
-        raw_base58[5 * i + 4] = ((v / 1) % 58) as u8;
+        raw_base58[5 * i + 4] = (v % 58) as u8;
         raw_base58[5 * i + 3] = ((v / 58) % 58) as u8;
         raw_base58[5 * i + 2] = ((v / 3364) % 58) as u8;
         raw_base58[5 * i + 1] = ((v / 195112) % 58) as u8;
-        raw_base58[5 * i + 0] = (v / 11316496) as u8; /* We know this one is less than 58 */
+        raw_base58[5 * i] = (v / 11316496) as u8; /* We know this one is less than 58 */
     }
     /* Finally, actually convert to the string.  We have to ignore all the
     leading zeros in raw_base58 and instead insert in_leading_0s
@@ -598,7 +598,7 @@ fn intermediate_to_base58_scalar<
     let skip = raw_leading_0s - in_leading_0s;
     for i in 0..(RAW58_SZ - skip) {
         unsafe {
-            *out.offset(i as isize) = BASE58_CHARS[raw_base58[skip + i] as usize];
+            *out.add(i) = BASE58_CHARS[raw_base58[skip + i] as usize];
         }
     }
     skip
@@ -643,9 +643,10 @@ fn make_binary_array<const BINARY_SZ: usize>(bytes: *const u8) -> [u32; BINARY_S
     X = sum_i binary[i] * 2^(32*(BINARY_SZ-1-i)) */
     let mut binary = [0u32; BINARY_SZ];
     for i in 0..BINARY_SZ {
-        binary[i] = fd_uint_bswap(fd_uint_load_4(unsafe {
-            bytes.offset((i * core::mem::size_of::<u32>()) as isize)
-        }));
+        unsafe {
+            *binary.get_unchecked_mut(i) =
+                fd_uint_bswap(fd_uint_load_4(bytes.add(i * core::mem::size_of::<u32>())));
+        }
     }
     binary
 }
@@ -724,7 +725,7 @@ fn base58_decode<
     /* Validate string and count characters before the nul terminator */
     let mut char_cnt = 0usize;
     while char_cnt < ENCODED_SZ {
-        let c = unsafe { *encoded.offset(char_cnt as isize) };
+        let c = unsafe { *encoded.add(char_cnt) };
         if c == 0 {
             break;
         }
@@ -748,7 +749,7 @@ fn base58_decode<
         raw_base58[j] = if j < prepend_0 {
             0
         } else {
-            BASE58_INVERSE[(unsafe { *encoded.offset((j - prepend_0) as isize) }
+            BASE58_INVERSE[(unsafe { *encoded.add(j - prepend_0) }
                 - BASE58_INVERSE_TABLE_OFFSET as i8) as usize]
         };
     }
@@ -756,11 +757,11 @@ fn base58_decode<
     X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i)) */
     let mut intermediate = [0u64; INTERMEDIATE_SZ];
     for i in 0..INTERMEDIATE_SZ {
-        intermediate[i] = raw_base58[5 * i + 0] as u64 * 11316496
+        intermediate[i] = raw_base58[5 * i] as u64 * 11316496
             + raw_base58[5 * i + 1] as u64 * 195112
             + raw_base58[5 * i + 2] as u64 * 3364
             + raw_base58[5 * i + 3] as u64 * 58
-            + raw_base58[5 * i + 4] as u64 * 1;
+            + raw_base58[5 * i + 4] as u64;
     }
     /* Using the table, convert to overcomplete base 2^32 (terms can be
     larger than 2^32).  We need to be careful about overflow.
@@ -775,9 +776,11 @@ fn base58_decode<
     for j in 0..BINARY_SZ {
         let mut acc = 0u64;
         for i in 0..INTERMEDIATE_SZ {
-            acc += intermediate[i] * dec_table[i][j] as u64;
+            acc += unsafe {
+                intermediate.get_unchecked(i) * *dec_table.get_unchecked(i).get_unchecked(j) as u64
+            };
         }
-        binary[j] = acc;
+        unsafe { *binary.get_unchecked_mut(j) = acc };
     }
     /* Make sure each term is less than 2^32.
 
@@ -800,8 +803,8 @@ fn base58_decode<
     let out_as_uint = out as *mut u32;
     for i in 0..BINARY_SZ {
         unsafe {
-            let swapped = fd_uint_bswap(binary[i] as u32);
-            *out_as_uint.offset(i as isize) = swapped;
+            let swapped = fd_uint_bswap(*binary.get_unchecked(i) as u32);
+            *out_as_uint.add(i) = swapped;
         }
     }
     /* Make sure the encoded version has the same number of leading '1's
