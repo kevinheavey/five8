@@ -299,7 +299,9 @@ fn add_binary_to_intermediate<const INTERMEDIATE_SZ_W_PADDING: usize, const BINA
     i: usize,
     multiplier: u64,
 ) {
-    intermediate.0[j + 1] += binary[i] as u64 * multiplier;
+    unsafe {
+        *intermediate.0.get_unchecked_mut(j + 1) += *binary.get_unchecked(i) as u64 * multiplier;
+    }
 }
 
 #[inline]
@@ -340,8 +342,8 @@ pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut 
         }
     }
     /* Mini-reduction */
-    intermediate.0[15] += intermediate.0[16] / R1DIV;
-    intermediate.0[16] %= R1DIV;
+    unsafe { *intermediate.0.get_unchecked_mut(15) += intermediate.0.get_unchecked(16) / R1DIV;}
+    unsafe { *intermediate.0.get_unchecked_mut(16) %= R1DIV;}
     /* Finish iterations */
     for i in 8..BINARY_SZ_64 {
         for j in 0..INTERMEDIATE_SZ_64 - 1 {
@@ -565,12 +567,22 @@ fn intermediate_to_base58_scalar<
         when it converts ulong/ulong to a magic multiplication, it
         generates the single-op 64b x 64b -> 128b mul instruction.  This
         hurts the CPU's ability to take advantage of the ILP here. */
-        let v = intermediate.0[i] as u32;
-        raw_base58[5 * i + 4] = (v % 58) as u8;
-        raw_base58[5 * i + 3] = ((v / 58) % 58) as u8;
-        raw_base58[5 * i + 2] = ((v / 3364) % 58) as u8;
-        raw_base58[5 * i + 1] = ((v / 195112) % 58) as u8;
-        raw_base58[5 * i] = (v / 11316496) as u8; /* We know this one is less than 58 */
+        let v = unsafe { *intermediate.0.get_unchecked(i) } as u32;
+        unsafe {
+            *raw_base58.get_unchecked_mut(5 * i + 4) = (v % 58) as u8;
+        }
+        unsafe {
+            *raw_base58.get_unchecked_mut(5 * i + 3) = ((v / 58) % 58) as u8;
+        }
+        unsafe {
+            *raw_base58.get_unchecked_mut(5 * i + 2) = ((v / 3364) % 58) as u8;
+        }
+        unsafe {
+            *raw_base58.get_unchecked_mut(5 * i + 1) = ((v / 195112) % 58) as u8;
+        }
+        unsafe {
+            *raw_base58.get_unchecked_mut(5 * i) = (v / 11316496) as u8;
+        } /* We know this one is less than 58 */
     }
     /* Finally, actually convert to the string.  We have to ignore all the
     leading zeros in raw_base58 and instead insert in_leading_0s
@@ -631,8 +643,12 @@ fn adjust_intermediate_array<
     this point is 2^63.87, and in the worst case, we add (2^64-1)/58^5,
     which is still about 2^63.87. */
     for i in (1..=INTERMEDIATE_SZ - 1).rev() {
-        intermediate.0[i - 1] += intermediate.0[i] / R1DIV;
-        intermediate.0[i] %= R1DIV;
+        unsafe {
+            *intermediate.0.get_unchecked_mut(i - 1) += *intermediate.0.get_unchecked(i) / R1DIV;
+        }
+        unsafe {
+            *intermediate.0.get_unchecked_mut(i) %= R1DIV;
+        }
     }
 }
 
@@ -740,7 +756,7 @@ fn base58_decode<
         let idx = (c as u8 as u64).wrapping_sub(BASE58_INVERSE_TABLE_OFFSET as u64);
         let idx = idx.min(BASE58_INVERSE_TABLE_SENTINEL as u64);
         char_cnt += 1;
-        if unlikely(BASE58_INVERSE[idx as usize] == BASE58_INVALID_CHAR) {
+        if unlikely(unsafe { *BASE58_INVERSE.get_unchecked(idx as usize) } == BASE58_INVALID_CHAR) {
             return Err(DecodeError::InvalidChar(c));
         }
     }
@@ -753,22 +769,27 @@ fn base58_decode<
     /* Prepend enough 0s to make it exactly RAW58_SZ characters */
     let prepend_0 = RAW58_SZ - char_cnt;
     for j in 0..RAW58_SZ {
-        raw_base58[j] = if j < prepend_0 {
+        let val = if j < prepend_0 {
             0
         } else {
             BASE58_INVERSE[(unsafe { *encoded.get_unchecked(j - prepend_0) }
                 - BASE58_INVERSE_TABLE_OFFSET) as usize]
         };
+        unsafe {
+            *raw_base58.get_unchecked_mut(j) = val;
+        }
     }
     /* Convert to the intermediate format (base 58^5):
     X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i)) */
     let mut intermediate = [0u64; INTERMEDIATE_SZ];
     for i in 0..INTERMEDIATE_SZ {
-        intermediate[i] = raw_base58[5 * i] as u64 * 11316496
-            + raw_base58[5 * i + 1] as u64 * 195112
-            + raw_base58[5 * i + 2] as u64 * 3364
-            + raw_base58[5 * i + 3] as u64 * 58
-            + raw_base58[5 * i + 4] as u64;
+        unsafe {
+            *intermediate.get_unchecked_mut(i) = *raw_base58.get_unchecked(5 * i) as u64 * 11316496
+                + *raw_base58.get_unchecked(5 * i + 1) as u64 * 195112
+                + *raw_base58.get_unchecked(5 * i + 2) as u64 * 3364
+                + *raw_base58.get_unchecked(5 * i + 3) as u64 * 58
+                + *raw_base58.get_unchecked(5 * i + 4) as u64;
+        }
     }
     /* Using the table, convert to overcomplete base 2^32 (terms can be
     larger than 2^32).  We need to be careful about overflow.
@@ -797,20 +818,27 @@ fn base58_decode<
     For N==64, even if we add 2^32 to binary[13], it is still 2^63.998,
     so this won't overflow. */
     for i in (1..BINARY_SZ).rev() {
-        binary[i - 1] += binary[i] >> 32;
-        binary[i] &= 0xFFFFFFFF;
+        unsafe {
+            *binary.get_unchecked_mut(i - 1) += binary.get_unchecked(i) >> 32;
+        }
+        unsafe {
+            *binary.get_unchecked_mut(i) &= 0xFFFFFFFF;
+        }
     }
     /* If the largest term is 2^32 or bigger, it means N is larger than
     what can fit in BYTE_CNT bytes.  This can be triggered, by passing
     a base58 string of all 'z's for example. */
-    if unlikely(binary[0] > 0xFFFFFFFF) {
+    if unlikely(unsafe { *binary.get_unchecked(0) } > 0xFFFFFFFF ) {
         return Err(DecodeError::LargestTermTooHigh);
     }
     /* Convert each term to big endian for the final output */
     for i in 0..BINARY_SZ {
         let swapped = (unsafe { *binary.get_unchecked(i) } as u32).to_be_bytes();
         let idx = i * size_of::<u32>();
-        out[idx..idx + size_of::<u32>()].copy_from_slice(&swapped);
+        unsafe {
+            out.get_unchecked_mut(idx..idx + size_of::<u32>())
+                .copy_from_slice(&swapped);
+        }
     }
     /* Make sure the encoded version has the same number of leading '1's
     as the decoded version has leading 0s. The check doesn't read past
