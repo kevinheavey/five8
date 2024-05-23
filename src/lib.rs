@@ -802,10 +802,9 @@ fn base58_decode<
     }
     /* Convert each term to big endian for the final output */
     for i in 0..BINARY_SZ {
-        let swapped = unsafe { fd_uint_bswap(*binary.get_unchecked(i) as u32) };
-        let swapped_bytes = swapped.to_ne_bytes();
+        let swapped = (unsafe { *binary.get_unchecked(i) } as u32).to_be_bytes();
         let idx = i * size_of::<u32>();
-        out[idx..idx + size_of::<u32>()].copy_from_slice(&swapped_bytes);
+        out[idx..idx + size_of::<u32>()].copy_from_slice(&swapped);
     }
     /* Make sure the encoded version has the same number of leading '1's
     as the decoded version has leading 0s. The check doesn't read past
