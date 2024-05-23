@@ -814,7 +814,9 @@ fn base58_decode<
     the end of encoded, because '\0' != '1', so it will return NULL. */
     let mut leading_zero_cnt = 0u64;
     while leading_zero_cnt < N as u64 {
-        if unsafe { *out.get_unchecked(leading_zero_cnt as usize) != 0 } {
+        let out_val = unsafe { *out.get_unchecked(leading_zero_cnt as usize)};
+        println!("leading_zero_cnt: {leading_zero_cnt}, out_val: {out_val}");
+        if out_val != 0 {
             break;
         }
         if unlikely(unsafe { *encoded.get_unchecked(leading_zero_cnt as usize) != ('1' as i8) }) {
