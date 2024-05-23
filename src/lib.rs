@@ -693,21 +693,25 @@ impl core::fmt::Display for DecodeError {
 }
 
 #[inline]
-pub fn base58_decode_32(encoded: *const i8, out: *mut u8) -> Result<*mut u8, DecodeError> {
-    base58_decode::<BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32, N_32>(
-        encoded,
-        out,
-        &DEC_TABLE_32,
-    )
+pub fn base58_decode_32(encoded: &[i8], out: &mut [u8; N_32]) -> Result<(), DecodeError> {
+    base58_decode::<
+        BASE58_ENCODED_32_SZ,
+        RAW58_SZ_32,
+        INTERMEDIATE_SZ_32,
+        BINARY_SZ_32,
+        N_32,
+    >(encoded, out, &DEC_TABLE_32)
 }
 
 #[inline]
-pub fn base58_decode_64(encoded: *const i8, out: *mut u8) -> Result<*mut u8, DecodeError> {
-    base58_decode::<BASE58_ENCODED_64_SZ, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64, N_64>(
-        encoded,
-        out,
-        &DEC_TABLE_64,
-    )
+pub fn base58_decode_64(encoded: &[i8], out: &mut [u8; N_64]) -> Result<(), DecodeError> {
+    base58_decode::<
+        BASE58_ENCODED_64_SZ,
+        RAW58_SZ_64,
+        INTERMEDIATE_SZ_64,
+        BINARY_SZ_64,
+        N_64,
+    >(encoded, out, &DEC_TABLE_64)
 }
 
 #[inline]
@@ -718,14 +722,14 @@ fn base58_decode<
     const BINARY_SZ: usize,
     const N: usize,
 >(
-    encoded: *const i8,
-    out: *mut u8,
+    encoded: &[i8],
+    out: &mut [u8; N],
     dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
-) -> Result<*mut u8, DecodeError> {
+) -> Result<(), DecodeError> {
     /* Validate string and count characters before the nul terminator */
     let mut char_cnt = 0usize;
     while char_cnt < ENCODED_SZ {
-        let c = unsafe { *encoded.add(char_cnt) };
+        let c = unsafe { *encoded.get_unchecked(char_cnt) };
         if c == 0 {
             break;
         }
@@ -749,7 +753,7 @@ fn base58_decode<
         raw_base58[j] = if j < prepend_0 {
             0
         } else {
-            BASE58_INVERSE[(unsafe { *encoded.add(j - prepend_0) }
+            BASE58_INVERSE[(unsafe { *encoded.get_unchecked(j - prepend_0) }
                 - BASE58_INVERSE_TABLE_OFFSET as i8) as usize]
         };
     }
@@ -800,30 +804,28 @@ fn base58_decode<
         return Err(DecodeError::LargestTermTooHigh);
     }
     /* Convert each term to big endian for the final output */
-    let out_as_uint = out as *mut u32;
+    let mut out_as_uint: [u32; BINARY_SZ] = [0u32; BINARY_SZ];
     for i in 0..BINARY_SZ {
-        unsafe {
-            let swapped = fd_uint_bswap(*binary.get_unchecked(i) as u32);
-            *out_as_uint.add(i) = swapped;
-        }
+        let swapped = unsafe { fd_uint_bswap(*binary.get_unchecked(i) as u32) };
+        out_as_uint[i] = swapped;
     }
     /* Make sure the encoded version has the same number of leading '1's
     as the decoded version has leading 0s. The check doesn't read past
     the end of encoded, because '\0' != '1', so it will return NULL. */
     let mut leading_zero_cnt = 0u64;
     while leading_zero_cnt < N as u64 {
-        if unsafe { *out.offset(leading_zero_cnt as isize) != 0 } {
+        if unsafe { *out.get_unchecked(leading_zero_cnt as usize) != 0 } {
             break;
         }
-        if unlikely(unsafe { *encoded.offset(leading_zero_cnt as isize) != ('1' as i8) }) {
+        if unlikely(unsafe { *encoded.get_unchecked(leading_zero_cnt as usize) != ('1' as i8) }) {
             return Err(DecodeError::WhatToCallThis);
         }
         leading_zero_cnt += 1;
     }
-    if unlikely(unsafe { *encoded.offset(leading_zero_cnt as isize) == ('1' as i8) }) {
+    if unlikely(unsafe { *encoded.get_unchecked(leading_zero_cnt as usize) == ('1' as i8) }) {
         return Err(DecodeError::WhatToCallThisToo);
     }
-    Ok(out)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -850,11 +852,10 @@ mod tests {
     ) {
         assert_eq!(&encode_32_to_string(&bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
-        let mut null_terminated = encoded.as_bytes().to_vec();
-        null_terminated.push(b'\0');
-        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
+        let mut null_terminated: Vec<i8> = encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
+        null_terminated.push(b'\0' as i8);
         let mut decoded = [0u8; 32];
-        base58_decode_32(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
+        base58_decode_32(&null_terminated, &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
@@ -867,31 +868,28 @@ mod tests {
     ) {
         assert_eq!(&encode_64_to_string(&bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
-        let mut null_terminated = encoded.as_bytes().to_vec();
-        null_terminated.push(b'\0');
-        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
+        let mut null_terminated: Vec<i8> = encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
+        null_terminated.push(b'\0' as i8);
         let mut decoded = [0u8; 64];
-        base58_decode_64(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
+        base58_decode_64(&null_terminated, &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
     fn check_bad_decode_32(expected_err: DecodeError, encoded: &str) {
-        let mut null_terminated = encoded.as_bytes().to_vec();
-        null_terminated.push(b'\0');
-        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
+        let mut null_terminated: Vec<i8> = encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
+        null_terminated.push(b'\0' as i8);
         let mut decoded = [0u8; 32];
         let err =
-            base58_decode_32(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap_err();
+            base58_decode_32(&null_terminated, &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
     }
 
     fn check_bad_decode_64(expected_err: DecodeError, encoded: &str) {
-        let mut null_terminated = encoded.as_bytes().to_vec();
-        null_terminated.push(b'\0');
-        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
+        let mut null_terminated: Vec<i8> = encoded.as_bytes().into_iter().map(|x| *x as i8).collect();
+        null_terminated.push(b'\0' as i8);
         let mut decoded = [0u8; 64];
         let err =
-            base58_decode_64(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap_err();
+            base58_decode_64(&null_terminated, &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
     }
 
@@ -964,15 +962,15 @@ mod tests {
     #[test]
     fn test_base58_decode_32() {
         let encoded = b"11111111111111111111111111111112\0";
+        let encoded_i8: Vec<i8> = encoded.into_iter().map(|x| *x as i8).collect();
+        println!("encoded_i8: {encoded_i8:?}");
         let encoded_ptr = encoded.as_ptr();
         assert_eq!(unsafe { *encoded_ptr.offset(31) }, b'2');
         let mut decoded = [0u8; 32];
-        let res = base58_decode_32(encoded_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
-        let as_slice = unsafe { core::slice::from_raw_parts(res, 32) };
+        base58_decode_32(&encoded_i8, &mut decoded).unwrap();
         let mut expected = [0u8; 32];
         expected[31] = 1;
-        assert_eq!(as_slice, &expected);
-        assert_eq!(as_slice, &decoded);
+        assert_eq!(expected, decoded);
     }
 
     #[test]
