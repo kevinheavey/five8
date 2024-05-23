@@ -303,7 +303,7 @@ fn add_binary_to_intermediate<const INTERMEDIATE_SZ_W_PADDING: usize, const BINA
 }
 
 #[inline]
-pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: *mut u8) -> *mut u8 {
+pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: *mut u8) {
     let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -425,11 +425,10 @@ pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: *mut 
         *out.add(RAW58_SZ_64 - skip as usize) = b'\0';
     }
     fd_ulong_store_if(opt_len, RAW58_SZ_64 as u8 - skip as u8);
-    out
 }
 
 #[inline]
-pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: *mut u8) -> *mut u8 {
+pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: *mut u8) {
     let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -533,7 +532,6 @@ pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: *mut 
         *out.add(RAW58_SZ_32 - skip as usize) = b'\0';
     }
     fd_ulong_store_if(opt_len, RAW58_SZ_32 as u8 - skip as u8);
-    out
 }
 
 #[cfg(not(target_feature = "avx2"))]
@@ -833,10 +831,8 @@ mod tests {
         len: &mut u8,
         buf: &mut [u8; BASE58_ENCODED_32_SZ],
     ) -> String {
-        let res = base58_encode_32(bytes, Some(len), buf.as_mut_ptr());
-        let as_slice = unsafe { core::slice::from_raw_parts(res, *len as usize) };
-        let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
-        collected
+        base58_encode_32(bytes, Some(len), buf.as_mut_ptr());
+        buf[..*len as usize].iter().map(|c| *c as char).collect()
     }
 
     fn check_encode_decode_32(
@@ -892,10 +888,8 @@ mod tests {
         len: &mut u8,
         buf: &mut [u8; BASE58_ENCODED_64_SZ],
     ) -> String {
-        let res = base58_encode_64(&bytes, Some(len), buf.as_mut_ptr());
-        let as_slice = unsafe { core::slice::from_raw_parts(res, *len as usize) };
-        let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
-        collected
+        base58_encode_64(&bytes, Some(len), buf.as_mut_ptr());
+        buf[..*len as usize].iter().map(|c| *c as char).collect()
     }
 
     #[test]
