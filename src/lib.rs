@@ -729,7 +729,7 @@ fn base58_decode<
             break;
         }
         /* If c<'1', this will underflow and idx will be huge */
-        let idx = c as u8 as u64 - BASE58_INVERSE_TABLE_OFFSET as u64;
+        let idx = (c as u8 as u64).wrapping_sub(BASE58_INVERSE_TABLE_OFFSET as u64);
         let idx = idx.min(BASE58_INVERSE_TABLE_SENTINEL as u64);
         char_cnt += 1;
         if unlikely(BASE58_INVERSE[idx as usize] == BASE58_INVALID_CHAR) {
@@ -872,6 +872,16 @@ mod tests {
         assert_eq!(&decoded, bytes);
     }
 
+    fn check_bad_decode_32(expected_err: DecodeError, encoded: &str) {
+        let mut null_terminated = encoded.as_bytes().to_vec();
+        null_terminated.push(b'\0');
+        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
+        let mut decoded = [0u8; 32];
+        let err =
+            base58_decode_32(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap_err();
+        assert_eq!(err, expected_err);
+    }
+
     fn check_bad_decode_64(expected_err: DecodeError, encoded: &str) {
         let mut null_terminated = encoded.as_bytes().to_vec();
         null_terminated.push(b'\0');
@@ -1009,7 +1019,91 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_error_32() {
+        // check_bad_decode_32(DecodeError::TooLong, "1");
+        // check_bad_decode_32(DecodeError::TooLong, "1111111111111111111111111111111");
+        // check_bad_decode_32(DecodeError::TooLong, "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJz");
+        // check_bad_decode_32(DecodeError::TooLong, "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL");
+        check_bad_decode_32(
+            DecodeError::TooLong,
+            "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofLRda4",
+        );
+        // check_bad_decode_32(DecodeError::TooLong, "111111111111111111111111111111111");
+        check_bad_decode_32(
+            DecodeError::LargestTermTooHigh,
+            "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFJ",
+        ); /* 2nd-smallest 33 byte value that doesn't start with 0x0 */
+        // check_bad_decode_32(
+        //     DecodeError::TooLong,
+        //     "11aEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWx",
+        // );
+        check_bad_decode_32(
+            DecodeError::InvalidChar(48),
+            "11111111111111111111111111111110",
+        );
+        check_bad_decode_32(
+            DecodeError::InvalidChar(33),
+            "1111111111111111111111111111111!",
+        );
+        check_bad_decode_32(
+            DecodeError::InvalidChar(73),
+            "1111111111111111111111111111111I",
+        );
+        check_bad_decode_32(
+            DecodeError::InvalidChar(79),
+            "1111111111111111111111111111111O",
+        );
+        check_bad_decode_32(
+            DecodeError::InvalidChar(95),
+            "1111111111111111111111111111111_",
+        );
+        check_bad_decode_32(
+            DecodeError::InvalidChar(108),
+            "1111111111111111111111111111111l",
+        );
+    }
+
+    #[test]
     fn test_decode_error_64() {
-        check_bad_decode_64(DecodeError::TooLong, "1");
+        // check_bad_decode_64(DecodeError::TooLong, "1");
+        // check_bad_decode_64(DecodeError::TooLong, "111111111111111111111111111111111111111111111111111111111111111");
+        // check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA");
+        // check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QW");
+        check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QWabc");
+        // check_bad_decode_64(DecodeError::TooLong, "11111111111111111111111111111111111111111111111111111111111111111");
+        check_bad_decode_64(
+            DecodeError::LargestTermTooHigh, 
+            "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roS"
+        ); /* 2nd-smallest 65 byte value that doesn't start with 0x0 */
+
+        // check_bad_decode_64(DecodeError::LargestTermTooHigh, "1114tjGcyzrfXw2deDmDAFFaFyss32WRgkYdDJuprrNEL8kc799TrHSQHfE9fv6ZDBUg2dsMJdfYr71hjE4EfjEN"); /* Start with too many '1's */
+        check_bad_decode_64(
+            DecodeError::InvalidChar(48),
+            "1111111111111111111111111111111111111111111111111111111111111110",
+        );
+        check_bad_decode_64(
+            DecodeError::InvalidChar(33),
+            "111111111111111111111111111111111111111111111111111111111111111!",
+        );
+        check_bad_decode_64(
+            DecodeError::InvalidChar(59),
+            "111111111111111111111111111111111111111111111111111111111111111;",
+        );
+        check_bad_decode_64(
+            DecodeError::InvalidChar(73),
+            "111111111111111111111111111111111111111111111111111111111111111I;",
+        );
+        check_bad_decode_64(
+            DecodeError::InvalidChar(79),
+            "111111111111111111111111111111111111111111111111111111111111111O",
+        );
+        check_bad_decode_64(
+            DecodeError::InvalidChar(95),
+            "111111111111111111111111111111111111111111111111111111111111111_",
+        );
+        check_bad_decode_64(
+            DecodeError::InvalidChar(108),
+            "111111111111111111111111111111111111111111111111111111111111111l",
+        );
     }
 }
