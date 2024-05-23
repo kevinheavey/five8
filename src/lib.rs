@@ -257,9 +257,9 @@ const INTERMEDIATE_SZ_W_PADDING_32: usize = INTERMEDIATE_SZ_32;
 const INTERMEDIATE_SZ_W_PADDING_64: usize = INTERMEDIATE_SZ_64;
 
 #[inline(always)]
-fn fd_ulong_store_if(c: bool, p: *mut u8, v: u8) {
-    if c {
-        unsafe { *p = v };
+fn fd_ulong_store_if(p: Option<&mut u8>, v: u8) {
+    if let Some(inner) = p {
+        *inner = v;
     }
 }
 
@@ -307,18 +307,19 @@ fn add_binary_to_intermediate<const INTERMEDIATE_SZ_W_PADDING: usize, const BINA
 }
 
 #[inline]
-pub fn base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mut i8 {
+pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: *mut i8) -> *mut i8 {
+    let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
         {
-            in_leading_0s_64_avx(bytes)
+            in_leading_0s_64_avx(bytes_ptr)
         }
         #[cfg(not(target_feature = "avx2"))]
         {
-            in_leading_0s_scalar::<N_64>(bytes)
+            in_leading_0s_scalar::<N_64>(bytes_ptr)
         }
     };
-    let binary = make_binary_array::<BINARY_SZ_64>(bytes);
+    let binary = make_binary_array::<BINARY_SZ_64>(bytes_ptr);
     /* Convert to the intermediate format:
       X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i))
     Initially, we don't require intermediate[i] < 58^5, but we do want
@@ -427,23 +428,24 @@ pub fn base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mu
     unsafe {
         *out.add(RAW58_SZ_64 - skip as usize) = '\0' as i8;
     }
-    fd_ulong_store_if(!opt_len.is_null(), opt_len, RAW58_SZ_64 as u8 - skip as u8);
+    fd_ulong_store_if(opt_len, RAW58_SZ_64 as u8 - skip as u8);
     out
 }
 
 #[inline]
-pub fn base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mut i8 {
+pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: *mut i8) -> *mut i8 {
+    let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
         {
-            in_leading_0s_32_avx(bytes)
+            in_leading_0s_32_avx(bytes_ptr)
         }
         #[cfg(not(target_feature = "avx2"))]
         {
-            in_leading_0s_scalar::<N_32>(bytes)
+            in_leading_0s_scalar::<N_32>(bytes_ptr)
         }
     };
-    let binary = make_binary_array::<BINARY_SZ_32>(bytes);
+    let binary = make_binary_array::<BINARY_SZ_32>(bytes_ptr);
     /* Convert to the intermediate format:
       X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i))
     Initially, we don't require intermediate[i] < 58^5, but we do want
@@ -534,7 +536,7 @@ pub fn base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mu
     unsafe {
         *out.add(RAW58_SZ_32 - skip as usize) = '\0' as i8;
     }
-    fd_ulong_store_if(!opt_len.is_null(), opt_len, RAW58_SZ_32 as u8 - skip as u8);
+    fd_ulong_store_if(opt_len, RAW58_SZ_32 as u8 - skip as u8);
     out
 }
 
@@ -835,7 +837,7 @@ mod tests {
         len: &mut u8,
         buf: &mut [i8; BASE58_ENCODED_32_SZ],
     ) -> String {
-        let res = base58_encode_32(bytes.as_ptr(), len, buf.as_mut_ptr());
+        let res = base58_encode_32(bytes, Some(len), buf.as_mut_ptr());
         let as_slice = unsafe { core::slice::from_raw_parts(res, *len as usize) };
         let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
         collected
@@ -898,7 +900,7 @@ mod tests {
         len: &mut u8,
         buf: &mut [i8; BASE58_ENCODED_64_SZ],
     ) -> String {
-        let res = base58_encode_64(bytes.as_ptr(), len, buf.as_mut_ptr());
+        let res = base58_encode_64(&bytes, Some(len), buf.as_mut_ptr());
         let as_slice = unsafe { core::slice::from_raw_parts(res, *len as usize) };
         let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
         collected
