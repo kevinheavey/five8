@@ -3,6 +3,7 @@
 use core::arch::x86_64::{
     __m128i, _mm256_extractf128_si256, _mm256_maskstore_epi64, _mm_bslli_si128, _mm_storeu_si128,
 };
+use core::mem::size_of;
 
 #[cfg(target_feature = "avx2")]
 mod avx;
@@ -23,15 +24,11 @@ const BASE58_ENCODED_32_SZ: usize = BASE58_ENCODED_32_LEN + 1; /* Including the 
 const BASE58_ENCODED_64_SZ: usize = BASE58_ENCODED_64_LEN + 1; /* Including the nul terminator */
 
 #[cfg(not(target_feature = "avx2"))]
-const BASE58_CHARS: [i8; 58] = [
-    b'1' as i8, b'2' as i8, b'3' as i8, b'4' as i8, b'5' as i8, b'6' as i8, b'7' as i8, b'8' as i8,
-    b'9' as i8, b'A' as i8, b'B' as i8, b'C' as i8, b'D' as i8, b'E' as i8, b'F' as i8, b'G' as i8,
-    b'H' as i8, b'J' as i8, b'K' as i8, b'L' as i8, b'M' as i8, b'N' as i8, b'P' as i8, b'Q' as i8,
-    b'R' as i8, b'S' as i8, b'T' as i8, b'U' as i8, b'V' as i8, b'W' as i8, b'X' as i8, b'Y' as i8,
-    b'Z' as i8, b'a' as i8, b'b' as i8, b'c' as i8, b'd' as i8, b'e' as i8, b'f' as i8, b'g' as i8,
-    b'h' as i8, b'i' as i8, b'j' as i8, b'k' as i8, b'm' as i8, b'n' as i8, b'o' as i8, b'p' as i8,
-    b'q' as i8, b'r' as i8, b's' as i8, b't' as i8, b'u' as i8, b'v' as i8, b'w' as i8, b'x' as i8,
-    b'y' as i8, b'z' as i8,
+const BASE58_CHARS: [u8; 58] = [
+    b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'A', b'B', b'C', b'D', b'E', b'F', b'G',
+    b'H', b'J', b'K', b'L', b'M', b'N', b'P', b'Q', b'R', b'S', b'T', b'U', b'V', b'W', b'X', b'Y',
+    b'Z', b'a', b'b', b'c', b'd', b'e', b'f', b'g', b'h', b'i', b'j', b'k', b'm', b'n', b'o', b'p',
+    b'q', b'r', b's', b't', b'u', b'v', b'w', b'x', b'y', b'z',
 ];
 const BASE58_INVALID_CHAR: u8 = 255;
 const BASE58_INVERSE_TABLE_OFFSET: u8 = b'1';
@@ -256,9 +253,9 @@ const INTERMEDIATE_SZ_W_PADDING_32: usize = INTERMEDIATE_SZ_32;
 const INTERMEDIATE_SZ_W_PADDING_64: usize = INTERMEDIATE_SZ_64;
 
 #[inline(always)]
-fn fd_ulong_store_if(c: bool, p: *mut u8, v: u8) {
-    if c {
-        unsafe { *p = v };
+fn fd_ulong_store_if(p: Option<&mut u8>, v: u8) {
+    if let Some(inner) = p {
+        *inner = v;
     }
 }
 
@@ -306,18 +303,19 @@ fn add_binary_to_intermediate<const INTERMEDIATE_SZ_W_PADDING: usize, const BINA
 }
 
 #[inline]
-pub fn base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mut i8 {
+pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut [u8]) {
+    let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
         {
-            in_leading_0s_64_avx(bytes)
+            in_leading_0s_64_avx(bytes_ptr)
         }
         #[cfg(not(target_feature = "avx2"))]
         {
-            in_leading_0s_scalar::<N_64>(bytes)
+            in_leading_0s_scalar::<N_64>(bytes_ptr)
         }
     };
-    let binary = make_binary_array::<BINARY_SZ_64>(bytes);
+    let binary = make_binary_array::<BINARY_SZ_64>(bytes_ptr);
     /* Convert to the intermediate format:
       X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i))
     Initially, we don't require intermediate[i] < 58^5, but we do want
@@ -394,29 +392,34 @@ pub fn base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mu
             let skip_div8 = wl_shru::<3>(w_skip);
             let mask1 = wl_eq(skip_div8, compare);
             let mask2 = wl_gt(compare, skip_div8);
+            let out_ptr = out.as_mut_ptr();
             unsafe {
                 _mm256_maskstore_epi64(
-                    (out.offset(-8 * (skip as isize / 8))) as *mut i64,
+                    (out_ptr.offset(-8 * (skip as isize / 8))) as *mut i64,
                     mask1,
                     shifted,
                 )
             };
             unsafe {
-                _mm256_maskstore_epi64(out.offset(-(skip as isize)) as *mut i64, mask2, base58_0)
+                _mm256_maskstore_epi64(
+                    out_ptr.offset(-(skip as isize)) as *mut i64,
+                    mask2,
+                    base58_0,
+                )
             };
 
-            unsafe { wuc_stu(out.offset(32 - skip as isize) as *mut u8, base58_1) };
+            unsafe { wuc_stu(out_ptr.offset(32 - skip as isize) as *mut u8, base58_1) };
 
             let last = unsafe { _mm_bslli_si128(_mm256_extractf128_si256(base58_2, 1), 6) };
             unsafe {
                 _mm_storeu_si128(
-                    out.offset(64 + 16 - 6 - skip as isize) as *mut __m128i,
+                    out_ptr.offset(64 + 16 - 6 - skip as isize) as *mut __m128i,
                     last,
                 )
             };
             unsafe {
                 _mm_storeu_si128(
-                    out.offset(64 - skip as isize) as *mut __m128i,
+                    out_ptr.offset(64 - skip as isize) as *mut __m128i,
                     _mm256_extractf128_si256(base58_2, 0),
                 )
             };
@@ -424,25 +427,25 @@ pub fn base58_encode_64(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mu
         }
     };
     unsafe {
-        *out.add(RAW58_SZ_64 - skip as usize) = '\0' as i8;
+        *out.get_unchecked_mut(RAW58_SZ_64 - skip as usize) = b'\0';
     }
-    fd_ulong_store_if(!opt_len.is_null(), opt_len, RAW58_SZ_64 as u8 - skip as u8);
-    out
+    fd_ulong_store_if(opt_len, RAW58_SZ_64 as u8 - skip as u8);
 }
 
 #[inline]
-pub fn base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mut i8 {
+pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut [u8]) {
+    let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
         {
-            in_leading_0s_32_avx(bytes)
+            in_leading_0s_32_avx(bytes_ptr)
         }
         #[cfg(not(target_feature = "avx2"))]
         {
-            in_leading_0s_scalar::<N_32>(bytes)
+            in_leading_0s_scalar::<N_32>(bytes_ptr)
         }
     };
-    let binary = make_binary_array::<BINARY_SZ_32>(bytes);
+    let binary = make_binary_array::<BINARY_SZ_32>(bytes_ptr);
     /* Convert to the intermediate format:
       X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i))
     Initially, we don't require intermediate[i] < 58^5, but we do want
@@ -519,22 +522,26 @@ pub fn base58_encode_32(bytes: *const u8, opt_len: *mut u8, out: *mut i8) -> *mu
             let shifted = wl_shru_vector(base58_0, shift_qty);
             let skip_div8 = wl_shru::<3>(w_skip);
             let mask1 = wl_eq(skip_div8, compare);
-            let out_offset = unsafe { out.offset(-8 * (skip as isize / 8)) } as *mut i64;
+            let out_ptr = out.as_mut_ptr();
+            let out_offset = unsafe { out_ptr.offset(-8 * (skip as isize / 8)) } as *mut i64;
             unsafe { _mm256_maskstore_epi64(out_offset, mask1, shifted) };
             let last = unsafe { _mm_bslli_si128(_mm256_extractf128_si256(base58_1, 0), 3) };
-            unsafe { _mm_storeu_si128(out.offset(29 - skip as isize) as *mut __m128i, last) };
+            unsafe { _mm_storeu_si128(out_ptr.offset(29 - skip as isize) as *mut __m128i, last) };
             let mask2 = wl_gt(compare, skip_div8);
             unsafe {
-                _mm256_maskstore_epi64(out.offset(-(skip as isize)) as *mut i64, mask2, base58_0)
+                _mm256_maskstore_epi64(
+                    out_ptr.offset(-(skip as isize)) as *mut i64,
+                    mask2,
+                    base58_0,
+                )
             };
             skip
         }
     };
     unsafe {
-        *out.add(RAW58_SZ_32 - skip as usize) = '\0' as i8;
+        *out.get_unchecked_mut(RAW58_SZ_32 - skip as usize) = b'\0';
     }
-    fd_ulong_store_if(!opt_len.is_null(), opt_len, RAW58_SZ_32 as u8 - skip as u8);
-    out
+    fd_ulong_store_if(opt_len, RAW58_SZ_32 as u8 - skip as u8);
 }
 
 #[cfg(not(target_feature = "avx2"))]
@@ -545,7 +552,7 @@ fn intermediate_to_base58_scalar<
 >(
     intermediate: &Intermediate<INTERMEDIATE_SZ_W_PADDING>,
     in_leading_0s: usize,
-    out: *mut i8,
+    out: &mut [u8],
 ) -> usize {
     /* Convert intermediate form to base 58.  This form of conversion
     exposes tons of ILP, but it's more than the CPU can take advantage
@@ -598,7 +605,7 @@ fn intermediate_to_base58_scalar<
     let skip = raw_leading_0s - in_leading_0s;
     for i in 0..(RAW58_SZ - skip) {
         unsafe {
-            *out.add(i) = BASE58_CHARS[raw_base58[skip + i] as usize];
+            *out.get_unchecked_mut(i) = BASE58_CHARS[raw_base58[skip + i] as usize];
         }
     }
     skip
@@ -665,7 +672,7 @@ fn unlikely(b: bool) -> bool {
 
 #[derive(Debug, PartialEq)]
 pub enum DecodeError {
-    InvalidChar(i8),
+    InvalidChar(u8),
     TooLong,
     LargestTermTooHigh,
     WhatToCallThis,
@@ -693,7 +700,7 @@ impl core::fmt::Display for DecodeError {
 }
 
 #[inline]
-pub fn base58_decode_32(encoded: *const i8, out: *mut u8) -> Result<*mut u8, DecodeError> {
+pub fn base58_decode_32(encoded: &[u8], out: &mut [u8; N_32]) -> Result<(), DecodeError> {
     base58_decode::<BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32, N_32>(
         encoded,
         out,
@@ -702,7 +709,7 @@ pub fn base58_decode_32(encoded: *const i8, out: *mut u8) -> Result<*mut u8, Dec
 }
 
 #[inline]
-pub fn base58_decode_64(encoded: *const i8, out: *mut u8) -> Result<*mut u8, DecodeError> {
+pub fn base58_decode_64(encoded: &[u8], out: &mut [u8; N_64]) -> Result<(), DecodeError> {
     base58_decode::<BASE58_ENCODED_64_SZ, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64, N_64>(
         encoded,
         out,
@@ -718,14 +725,14 @@ fn base58_decode<
     const BINARY_SZ: usize,
     const N: usize,
 >(
-    encoded: *const i8,
-    out: *mut u8,
+    encoded: &[u8],
+    out: &mut [u8; N],
     dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
-) -> Result<*mut u8, DecodeError> {
+) -> Result<(), DecodeError> {
     /* Validate string and count characters before the nul terminator */
     let mut char_cnt = 0usize;
     while char_cnt < ENCODED_SZ {
-        let c = unsafe { *encoded.add(char_cnt) };
+        let c = unsafe { *encoded.get_unchecked(char_cnt) };
         if c == 0 {
             break;
         }
@@ -749,8 +756,8 @@ fn base58_decode<
         raw_base58[j] = if j < prepend_0 {
             0
         } else {
-            BASE58_INVERSE[(unsafe { *encoded.add(j - prepend_0) }
-                - BASE58_INVERSE_TABLE_OFFSET as i8) as usize]
+            BASE58_INVERSE[(unsafe { *encoded.get_unchecked(j - prepend_0) }
+                - BASE58_INVERSE_TABLE_OFFSET) as usize]
         };
     }
     /* Convert to the intermediate format (base 58^5):
@@ -800,30 +807,29 @@ fn base58_decode<
         return Err(DecodeError::LargestTermTooHigh);
     }
     /* Convert each term to big endian for the final output */
-    let out_as_uint = out as *mut u32;
     for i in 0..BINARY_SZ {
-        unsafe {
-            let swapped = fd_uint_bswap(*binary.get_unchecked(i) as u32);
-            *out_as_uint.add(i) = swapped;
-        }
+        let swapped = (unsafe { *binary.get_unchecked(i) } as u32).to_be_bytes();
+        let idx = i * size_of::<u32>();
+        out[idx..idx + size_of::<u32>()].copy_from_slice(&swapped);
     }
     /* Make sure the encoded version has the same number of leading '1's
     as the decoded version has leading 0s. The check doesn't read past
     the end of encoded, because '\0' != '1', so it will return NULL. */
     let mut leading_zero_cnt = 0u64;
     while leading_zero_cnt < N as u64 {
-        if unsafe { *out.offset(leading_zero_cnt as isize) != 0 } {
+        let out_val = unsafe { *out.get_unchecked(leading_zero_cnt as usize) };
+        if out_val != 0 {
             break;
         }
-        if unlikely(unsafe { *encoded.offset(leading_zero_cnt as isize) != ('1' as i8) }) {
+        if unlikely(unsafe { *encoded.get_unchecked(leading_zero_cnt as usize) != b'1' }) {
             return Err(DecodeError::WhatToCallThis);
         }
         leading_zero_cnt += 1;
     }
-    if unlikely(unsafe { *encoded.offset(leading_zero_cnt as isize) == ('1' as i8) }) {
+    if unlikely(unsafe { *encoded.get_unchecked(leading_zero_cnt as usize) == b'1' }) {
         return Err(DecodeError::WhatToCallThisToo);
     }
-    Ok(out)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -833,18 +839,16 @@ mod tests {
     fn encode_32_to_string(
         bytes: &[u8; 32],
         len: &mut u8,
-        buf: &mut [i8; BASE58_ENCODED_32_SZ],
+        buf: &mut [u8; BASE58_ENCODED_32_SZ],
     ) -> String {
-        let res = base58_encode_32(bytes.as_ptr(), len, buf.as_mut_ptr());
-        let as_slice = unsafe { core::slice::from_raw_parts(res, *len as usize) };
-        let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
-        collected
+        base58_encode_32(bytes, Some(len), buf);
+        buf[..*len as usize].iter().map(|c| *c as char).collect()
     }
 
     fn check_encode_decode_32(
         bytes: &[u8; 32],
         len: &mut u8,
-        buf: &mut [i8; BASE58_ENCODED_32_SZ],
+        buf: &mut [u8; BASE58_ENCODED_32_SZ],
         expected_len: u8,
         encoded: &str,
     ) {
@@ -852,16 +856,15 @@ mod tests {
         assert_eq!(*len, expected_len);
         let mut null_terminated = encoded.as_bytes().to_vec();
         null_terminated.push(b'\0');
-        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
         let mut decoded = [0u8; 32];
-        base58_decode_32(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
+        base58_decode_32(&null_terminated, &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
     fn check_encode_decode_64(
         bytes: &[u8; 64],
         len: &mut u8,
-        buf: &mut [i8; BASE58_ENCODED_64_SZ],
+        buf: &mut [u8; BASE58_ENCODED_64_SZ],
         expected_len: u8,
         encoded: &str,
     ) {
@@ -869,46 +872,39 @@ mod tests {
         assert_eq!(*len, expected_len);
         let mut null_terminated = encoded.as_bytes().to_vec();
         null_terminated.push(b'\0');
-        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
         let mut decoded = [0u8; 64];
-        base58_decode_64(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
+        base58_decode_64(&null_terminated, &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
     fn check_bad_decode_32(expected_err: DecodeError, encoded: &str) {
         let mut null_terminated = encoded.as_bytes().to_vec();
         null_terminated.push(b'\0');
-        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
         let mut decoded = [0u8; 32];
-        let err =
-            base58_decode_32(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap_err();
+        let err = base58_decode_32(&null_terminated, &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
     }
 
     fn check_bad_decode_64(expected_err: DecodeError, encoded: &str) {
         let mut null_terminated = encoded.as_bytes().to_vec();
         null_terminated.push(b'\0');
-        let null_terminated_ptr = null_terminated.as_slice().as_ptr();
         let mut decoded = [0u8; 64];
-        let err =
-            base58_decode_64(null_terminated_ptr as *const i8, decoded.as_mut_ptr()).unwrap_err();
+        let err = base58_decode_64(&null_terminated, &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
     }
 
     fn encode_64_to_string(
         bytes: &[u8; 64],
         len: &mut u8,
-        buf: &mut [i8; BASE58_ENCODED_64_SZ],
+        buf: &mut [u8; BASE58_ENCODED_64_SZ],
     ) -> String {
-        let res = base58_encode_64(bytes.as_ptr(), len, buf.as_mut_ptr());
-        let as_slice = unsafe { core::slice::from_raw_parts(res, *len as usize) };
-        let collected: String = as_slice.iter().map(|c| *c as u8 as char).collect();
-        collected
+        base58_encode_64(&bytes, Some(len), buf);
+        buf[..*len as usize].iter().map(|c| *c as char).collect()
     }
 
     #[test]
     fn test_encode_decode_32() {
-        let mut buf = [0i8; BASE58_ENCODED_32_SZ];
+        let mut buf = [0u8; BASE58_ENCODED_32_SZ];
         let mut len = 0u8;
         let mut bytes = [0u8; 32];
         check_encode_decode_32(
@@ -967,17 +963,15 @@ mod tests {
         let encoded_ptr = encoded.as_ptr();
         assert_eq!(unsafe { *encoded_ptr.offset(31) }, b'2');
         let mut decoded = [0u8; 32];
-        let res = base58_decode_32(encoded_ptr as *const i8, decoded.as_mut_ptr()).unwrap();
-        let as_slice = unsafe { core::slice::from_raw_parts(res, 32) };
+        base58_decode_32(encoded, &mut decoded).unwrap();
         let mut expected = [0u8; 32];
         expected[31] = 1;
-        assert_eq!(as_slice, &expected);
-        assert_eq!(as_slice, &decoded);
+        assert_eq!(expected, decoded);
     }
 
     #[test]
     fn test_encode_decode_64() {
-        let mut buf = [0i8; BASE58_ENCODED_64_SZ];
+        let mut buf = [0u8; BASE58_ENCODED_64_SZ];
         let mut len = 0u8;
         let mut bytes = [0u8; 64];
         check_encode_decode_64(
@@ -1023,23 +1017,35 @@ mod tests {
 
     #[test]
     fn test_decode_error_32() {
-        // check_bad_decode_32(DecodeError::TooLong, "1");
-        // check_bad_decode_32(DecodeError::TooLong, "1111111111111111111111111111111");
-        // check_bad_decode_32(DecodeError::TooLong, "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJz");
-        // check_bad_decode_32(DecodeError::TooLong, "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL");
+        check_bad_decode_32(DecodeError::WhatToCallThis, "1");
+        check_bad_decode_32(
+            DecodeError::WhatToCallThis,
+            "1111111111111111111111111111111",
+        );
+        check_bad_decode_32(
+            DecodeError::WhatToCallThis,
+            "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJz",
+        );
+        check_bad_decode_32(
+            DecodeError::WhatToCallThis,
+            "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL",
+        );
         check_bad_decode_32(
             DecodeError::TooLong,
             "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofLRda4",
         );
-        // check_bad_decode_32(DecodeError::TooLong, "111111111111111111111111111111111");
+        check_bad_decode_32(
+            DecodeError::WhatToCallThisToo,
+            "111111111111111111111111111111111",
+        );
         check_bad_decode_32(
             DecodeError::LargestTermTooHigh,
             "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFJ",
         ); /* 2nd-smallest 33 byte value that doesn't start with 0x0 */
-        // check_bad_decode_32(
-        //     DecodeError::TooLong,
-        //     "11aEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWx",
-        // );
+        check_bad_decode_32(
+            DecodeError::WhatToCallThisToo,
+            "11aEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWx",
+        );
         check_bad_decode_32(
             DecodeError::InvalidChar(48),
             "11111111111111111111111111111110",
@@ -1068,18 +1074,27 @@ mod tests {
 
     #[test]
     fn test_decode_error_64() {
-        // check_bad_decode_64(DecodeError::TooLong, "1");
-        // check_bad_decode_64(DecodeError::TooLong, "111111111111111111111111111111111111111111111111111111111111111");
-        // check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA");
-        // check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QW");
+        check_bad_decode_64(DecodeError::WhatToCallThis, "1");
+        check_bad_decode_64(
+            DecodeError::WhatToCallThis,
+            "111111111111111111111111111111111111111111111111111111111111111",
+        );
+        check_bad_decode_64(
+            DecodeError::WhatToCallThis,
+            "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA",
+        );
+        check_bad_decode_64(DecodeError::WhatToCallThis, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QW");
         check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QWabc");
-        // check_bad_decode_64(DecodeError::TooLong, "11111111111111111111111111111111111111111111111111111111111111111");
+        check_bad_decode_64(
+            DecodeError::WhatToCallThisToo,
+            "11111111111111111111111111111111111111111111111111111111111111111",
+        );
         check_bad_decode_64(
             DecodeError::LargestTermTooHigh,
             "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roS"
         ); /* 2nd-smallest 65 byte value that doesn't start with 0x0 */
 
-        // check_bad_decode_64(DecodeError::LargestTermTooHigh, "1114tjGcyzrfXw2deDmDAFFaFyss32WRgkYdDJuprrNEL8kc799TrHSQHfE9fv6ZDBUg2dsMJdfYr71hjE4EfjEN"); /* Start with too many '1's */
+        check_bad_decode_64(DecodeError::WhatToCallThisToo, "1114tjGcyzrfXw2deDmDAFFaFyss32WRgkYdDJuprrNEL8kc799TrHSQHfE9fv6ZDBUg2dsMJdfYr71hjE4EfjEN"); /* Start with too many '1's */
         check_bad_decode_64(
             DecodeError::InvalidChar(48),
             "1111111111111111111111111111111111111111111111111111111111111110",
