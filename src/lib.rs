@@ -303,7 +303,7 @@ fn add_binary_to_intermediate<const INTERMEDIATE_SZ_W_PADDING: usize, const BINA
 }
 
 #[inline]
-pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: *mut u8) {
+pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut [u8]) {
     let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -392,29 +392,34 @@ pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: *mut 
             let skip_div8 = wl_shru::<3>(w_skip);
             let mask1 = wl_eq(skip_div8, compare);
             let mask2 = wl_gt(compare, skip_div8);
+            let out_ptr = out.as_mut_ptr();
             unsafe {
                 _mm256_maskstore_epi64(
-                    (out.offset(-8 * (skip as isize / 8))) as *mut i64,
+                    (out_ptr.offset(-8 * (skip as isize / 8))) as *mut i64,
                     mask1,
                     shifted,
                 )
             };
             unsafe {
-                _mm256_maskstore_epi64(out.offset(-(skip as isize)) as *mut i64, mask2, base58_0)
+                _mm256_maskstore_epi64(
+                    out_ptr.offset(-(skip as isize)) as *mut i64,
+                    mask2,
+                    base58_0,
+                )
             };
 
-            unsafe { wuc_stu(out.offset(32 - skip as isize) as *mut u8, base58_1) };
+            unsafe { wuc_stu(out_ptr.offset(32 - skip as isize) as *mut u8, base58_1) };
 
             let last = unsafe { _mm_bslli_si128(_mm256_extractf128_si256(base58_2, 1), 6) };
             unsafe {
                 _mm_storeu_si128(
-                    out.offset(64 + 16 - 6 - skip as isize) as *mut __m128i,
+                    out_ptr.offset(64 + 16 - 6 - skip as isize) as *mut __m128i,
                     last,
                 )
             };
             unsafe {
                 _mm_storeu_si128(
-                    out.offset(64 - skip as isize) as *mut __m128i,
+                    out_ptr.offset(64 - skip as isize) as *mut __m128i,
                     _mm256_extractf128_si256(base58_2, 0),
                 )
             };
@@ -422,13 +427,13 @@ pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: *mut 
         }
     };
     unsafe {
-        *out.add(RAW58_SZ_64 - skip as usize) = b'\0';
+        *out.get_unchecked_mut(RAW58_SZ_64 - skip as usize) = b'\0';
     }
     fd_ulong_store_if(opt_len, RAW58_SZ_64 as u8 - skip as u8);
 }
 
 #[inline]
-pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: *mut u8) {
+pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut [u8]) {
     let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -517,19 +522,24 @@ pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: *mut 
             let shifted = wl_shru_vector(base58_0, shift_qty);
             let skip_div8 = wl_shru::<3>(w_skip);
             let mask1 = wl_eq(skip_div8, compare);
-            let out_offset = unsafe { out.offset(-8 * (skip as isize / 8)) } as *mut i64;
+            let out_ptr = out.as_mut_ptr();
+            let out_offset = unsafe { out_ptr.offset(-8 * (skip as isize / 8)) } as *mut i64;
             unsafe { _mm256_maskstore_epi64(out_offset, mask1, shifted) };
             let last = unsafe { _mm_bslli_si128(_mm256_extractf128_si256(base58_1, 0), 3) };
-            unsafe { _mm_storeu_si128(out.offset(29 - skip as isize) as *mut __m128i, last) };
+            unsafe { _mm_storeu_si128(out_ptr.offset(29 - skip as isize) as *mut __m128i, last) };
             let mask2 = wl_gt(compare, skip_div8);
             unsafe {
-                _mm256_maskstore_epi64(out.offset(-(skip as isize)) as *mut i64, mask2, base58_0)
+                _mm256_maskstore_epi64(
+                    out_ptr.offset(-(skip as isize)) as *mut i64,
+                    mask2,
+                    base58_0,
+                )
             };
             skip
         }
     };
     unsafe {
-        *out.add(RAW58_SZ_32 - skip as usize) = b'\0';
+        *out.get_unchecked_mut(RAW58_SZ_32 - skip as usize) = b'\0';
     }
     fd_ulong_store_if(opt_len, RAW58_SZ_32 as u8 - skip as u8);
 }
@@ -542,7 +552,7 @@ fn intermediate_to_base58_scalar<
 >(
     intermediate: &Intermediate<INTERMEDIATE_SZ_W_PADDING>,
     in_leading_0s: usize,
-    out: *mut u8,
+    out: &mut [u8],
 ) -> usize {
     /* Convert intermediate form to base 58.  This form of conversion
     exposes tons of ILP, but it's more than the CPU can take advantage
@@ -595,7 +605,7 @@ fn intermediate_to_base58_scalar<
     let skip = raw_leading_0s - in_leading_0s;
     for i in 0..(RAW58_SZ - skip) {
         unsafe {
-            *out.add(i) = BASE58_CHARS[raw_base58[skip + i] as usize];
+            *out.get_unchecked_mut(i) = BASE58_CHARS[raw_base58[skip + i] as usize];
         }
     }
     skip
@@ -831,7 +841,7 @@ mod tests {
         len: &mut u8,
         buf: &mut [u8; BASE58_ENCODED_32_SZ],
     ) -> String {
-        base58_encode_32(bytes, Some(len), buf.as_mut_ptr());
+        base58_encode_32(bytes, Some(len), buf);
         buf[..*len as usize].iter().map(|c| *c as char).collect()
     }
 
@@ -888,7 +898,7 @@ mod tests {
         len: &mut u8,
         buf: &mut [u8; BASE58_ENCODED_64_SZ],
     ) -> String {
-        base58_encode_64(&bytes, Some(len), buf.as_mut_ptr());
+        base58_encode_64(&bytes, Some(len), buf);
         buf[..*len as usize].iter().map(|c| *c as char).collect()
     }
 
