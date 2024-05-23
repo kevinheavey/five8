@@ -807,7 +807,9 @@ fn base58_decode<
     let mut out_as_uint: [u32; BINARY_SZ] = [0u32; BINARY_SZ];
     for i in 0..BINARY_SZ {
         let swapped = unsafe { fd_uint_bswap(*binary.get_unchecked(i) as u32) };
-        out_as_uint[i] = swapped;
+        let swapped_bytes = swapped.to_ne_bytes();
+        println!("swapped_bytes: {swapped_bytes:?}");
+        out[i..i+4].copy_from_slice(&swapped_bytes);
     }
     /* Make sure the encoded version has the same number of leading '1's
     as the decoded version has leading 0s. The check doesn't read past
@@ -825,6 +827,7 @@ fn base58_decode<
         leading_zero_cnt += 1;
     }
     if unlikely(unsafe { *encoded.get_unchecked(leading_zero_cnt as usize) == ('1' as i8) }) {
+        println!("leading_zero_cnt after while: {leading_zero_cnt}");
         return Err(DecodeError::WhatToCallThisToo);
     }
     Ok(())
