@@ -109,8 +109,11 @@ fn base58_decode_before_be_convert<
         if j < prepend_0 {
             0
         } else {
-            BASE58_INVERSE[(unsafe { *encoded.get_unchecked(j - prepend_0) }
-                - BASE58_INVERSE_TABLE_OFFSET) as usize]
+            unsafe {
+                *BASE58_INVERSE.get_unchecked(
+                    (*encoded.get_unchecked(j - prepend_0) - BASE58_INVERSE_TABLE_OFFSET) as usize,
+                )
+            }
         }
     });
     let intermediate: [u64; INTERMEDIATE_SZ] = from_fn(|i| unsafe {
@@ -295,20 +298,22 @@ fn truncate_and_swap_u64s_registers<
     };
     let mut holder: [core::arch::x86_64::__m256i; N_REGISTERS] = from_fn(|i| unsafe {
         core::arch::x86_64::_mm256_loadu_si256(
-            nums[(i * 4)..(4 + i * 4)].as_ptr() as *const core::arch::x86_64::__m256i
+            nums.get_unchecked((i * 4)..(4 + i * 4)).as_ptr() as *const core::arch::x86_64::__m256i
         )
     });
     for i in 0..N_REGISTERS {
-        let register = holder[i];
+        let register = unsafe { *holder.get_unchecked(i) };
         unsafe {
             *holder.get_unchecked_mut(i) = core::arch::x86_64::_mm256_shuffle_epi8(register, mask)
         };
     }
     let splits: [[core::arch::x86_64::__m128i; 2]; N_REGISTERS] =
-        from_fn(|i| unsafe { core::mem::transmute(holder[i]) });
+        from_fn(|i| unsafe { core::mem::transmute(*holder.get_unchecked(i)) });
     from_fn(|i| {
         let split = unsafe { *splits.get_unchecked(i) };
-        unsafe { core::arch::x86_64::_mm_unpacklo_epi64(split[0], split[1]) }
+        unsafe {
+            core::arch::x86_64::_mm_unpacklo_epi64(*split.get_unchecked(0), *split.get_unchecked(1))
+        }
     })
 }
 
