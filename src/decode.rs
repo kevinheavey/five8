@@ -5,6 +5,7 @@ use crate::{
         BINARY_SZ_32, BINARY_SZ_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64,
         RAW58_SZ_32, RAW58_SZ_64,
     },
+    encode::u8s_to_u32s_swapped_32_outer,
     error::DecodeError,
     unlikely::unlikely,
 };
@@ -34,84 +35,9 @@ pub(crate) fn base58_decode<
     out: &mut [u8; N],
     dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
 ) -> Result<(), DecodeError> {
-    /* Validate string and count characters before the nul terminator */
-    let mut char_cnt = 0usize;
-    while char_cnt < ENCODED_SZ {
-        let c = unsafe { *encoded.get_unchecked(char_cnt) };
-        if c == 0 {
-            break;
-        }
-        /* If c<'1', this will underflow and idx will be huge */
-        let idx = (c as u64).wrapping_sub(BASE58_INVERSE_TABLE_OFFSET as u64);
-        let idx = idx.min(BASE58_INVERSE_TABLE_SENTINEL as u64);
-        char_cnt += 1;
-        if unlikely(unsafe { *BASE58_INVERSE.get_unchecked(idx as usize) } == BASE58_INVALID_CHAR) {
-            return Err(DecodeError::InvalidChar(c));
-        }
-    }
-    if unlikely(char_cnt == ENCODED_SZ) {
-        /* too long */
-        return Err(DecodeError::TooLong);
-    }
-    /* X = sum_i raw_base58[i] * 58^(RAW58_SZ-1-i) */
-    /* Prepend enough 0s to make it exactly RAW58_SZ characters */
-    let prepend_0 = RAW58_SZ - char_cnt;
-    let raw_base58: [u8; RAW58_SZ] = from_fn(|j| {
-        if j < prepend_0 {
-            0
-        } else {
-            BASE58_INVERSE[(unsafe { *encoded.get_unchecked(j - prepend_0) }
-                - BASE58_INVERSE_TABLE_OFFSET) as usize]
-        }
-    });
-    /* Convert to the intermediate format (base 58^5):
-    X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i)) */
-    let intermediate: [u64; INTERMEDIATE_SZ] = from_fn(|i| unsafe {
-        *raw_base58.get_unchecked(5 * i) as u64 * 11316496
-            + *raw_base58.get_unchecked(5 * i + 1) as u64 * 195112
-            + *raw_base58.get_unchecked(5 * i + 2) as u64 * 3364
-            + *raw_base58.get_unchecked(5 * i + 3) as u64 * 58
-            + *raw_base58.get_unchecked(5 * i + 4) as u64
-    });
-    /* Using the table, convert to overcomplete base 2^32 (terms can be
-    larger than 2^32).  We need to be careful about overflow.
-
-    For N==32, the largest anything in binary can get is binary[7]:
-    even if intermediate[i]==58^5-1 for all i, then binary[7] < 2^63.
-
-    For N==64, the largest anything in binary can get is binary[13]:
-    even if intermediate[i]==58^5-1 for all i, then binary[13] <
-    2^63.998.  Hanging in there, just by a thread! */
-    let mut binary: [u64; BINARY_SZ] = from_fn(|j| {
-        let mut acc = 0u64;
-        for i in 0..INTERMEDIATE_SZ {
-            acc += unsafe {
-                intermediate.get_unchecked(i) * *dec_table.get_unchecked(i).get_unchecked(j) as u64
-            };
-        }
-        acc
-    });
-    /* Make sure each term is less than 2^32.
-
-    For N==32, we have plenty of headroom in binary, so overflow is
-    not a concern this time.
-
-    For N==64, even if we add 2^32 to binary[13], it is still 2^63.998,
-    so this won't overflow. */
-    for i in (1..BINARY_SZ).rev() {
-        unsafe {
-            *binary.get_unchecked_mut(i - 1) += binary.get_unchecked(i) >> 32;
-        }
-        unsafe {
-            *binary.get_unchecked_mut(i) &= 0xFFFFFFFF;
-        }
-    }
-    /* If the largest term is 2^32 or bigger, it means N is larger than
-    what can fit in BYTE_CNT bytes.  This can be triggered, by passing
-    a base58 string of all 'z's for example. */
-    if unlikely(unsafe { *binary.get_unchecked(0) } > 0xFFFFFFFF) {
-        return Err(DecodeError::LargestTermTooHigh);
-    }
+    let binary = base58_decode_before_be_convert::<ENCODED_SZ, RAW58_SZ, INTERMEDIATE_SZ, BINARY_SZ>(
+        encoded, dec_table,
+    )?;
     let binary_u8 = binary.as_ptr() as *const u8;
     /* Convert each term to big endian for the final output */
     for i in 0..BINARY_SZ {
@@ -136,6 +62,27 @@ pub(crate) fn base58_decode<
             *out.get_unchecked_mut(out_idx + 3) = *binary_u8.add(binary_u8_idx + 7);
         }
     }
+    base58_decode_after_be_convert(out, encoded)
+}
+
+// #[inline]
+// pub(crate) fn base58_decode_32_2(
+//     encoded: &[u8],
+//     out: &mut [u8; N_32],
+// ) -> Result<(), DecodeError> {
+//     let binary = base58_decode_before_be_convert::<BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32>(
+//         encoded, &DEC_TABLE_32,
+//     )?;
+//     let binary_u8 = binary.as_ptr() as *const u8;
+//     /* Convert each term to big endian for the final output */
+//     u8s_to_u32s_swapped_32_outer(out, &binary);
+//     base58_decode_after_be_convert(out, encoded)
+// }
+
+fn base58_decode_after_be_convert<const N: usize>(
+    out: &mut [u8; N],
+    encoded: &[u8],
+) -> Result<(), DecodeError> {
     /* Make sure the encoded version has the same number of leading '1's
     as the decoded version has leading 0s. The check doesn't read past
     the end of encoded, because '\0' != '1', so it will return NULL. */
@@ -154,6 +101,73 @@ pub(crate) fn base58_decode<
         return Err(DecodeError::WhatToCallThisToo);
     }
     Ok(())
+}
+
+#[inline(always)]
+fn base58_decode_before_be_convert<
+    const ENCODED_SZ: usize,
+    const RAW58_SZ: usize,
+    const INTERMEDIATE_SZ: usize,
+    const BINARY_SZ: usize,
+>(
+    encoded: &[u8],
+    dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
+) -> Result<[u64; BINARY_SZ], DecodeError> {
+    let mut char_cnt = 0usize;
+    while char_cnt < ENCODED_SZ {
+        let c = unsafe { *encoded.get_unchecked(char_cnt) };
+        if c == 0 {
+            break;
+        }
+        /* If c<'1', this will underflow and idx will be huge */
+        let idx = (c as u64).wrapping_sub(BASE58_INVERSE_TABLE_OFFSET as u64);
+        let idx = idx.min(BASE58_INVERSE_TABLE_SENTINEL as u64);
+        char_cnt += 1;
+        if unlikely(unsafe { *BASE58_INVERSE.get_unchecked(idx as usize) } == BASE58_INVALID_CHAR) {
+            return Err(DecodeError::InvalidChar(c));
+        }
+    }
+    if unlikely(char_cnt == ENCODED_SZ) {
+        /* too long */
+        return Err(DecodeError::TooLong);
+    }
+    let prepend_0 = RAW58_SZ - char_cnt;
+    let raw_base58: [u8; RAW58_SZ] = from_fn(|j| {
+        if j < prepend_0 {
+            0
+        } else {
+            BASE58_INVERSE[(unsafe { *encoded.get_unchecked(j - prepend_0) }
+                - BASE58_INVERSE_TABLE_OFFSET) as usize]
+        }
+    });
+    let intermediate: [u64; INTERMEDIATE_SZ] = from_fn(|i| unsafe {
+        *raw_base58.get_unchecked(5 * i) as u64 * 11316496
+            + *raw_base58.get_unchecked(5 * i + 1) as u64 * 195112
+            + *raw_base58.get_unchecked(5 * i + 2) as u64 * 3364
+            + *raw_base58.get_unchecked(5 * i + 3) as u64 * 58
+            + *raw_base58.get_unchecked(5 * i + 4) as u64
+    });
+    let mut binary: [u64; BINARY_SZ] = from_fn(|j| {
+        let mut acc = 0u64;
+        for i in 0..INTERMEDIATE_SZ {
+            acc += unsafe {
+                intermediate.get_unchecked(i) * *dec_table.get_unchecked(i).get_unchecked(j) as u64
+            };
+        }
+        acc
+    });
+    for i in (1..BINARY_SZ).rev() {
+        unsafe {
+            *binary.get_unchecked_mut(i - 1) += binary.get_unchecked(i) >> 32;
+        }
+        unsafe {
+            *binary.get_unchecked_mut(i) &= 0xFFFFFFFF;
+        }
+    }
+    if unlikely(unsafe { *binary.get_unchecked(0) } > 0xFFFFFFFF) {
+        return Err(DecodeError::LargestTermTooHigh);
+    }
+    Ok(binary)
 }
 
 /* Contains the unique values less than 2^32 such that:
