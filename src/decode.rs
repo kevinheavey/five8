@@ -5,7 +5,6 @@ use crate::{
         BINARY_SZ_32, BINARY_SZ_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64,
         RAW58_SZ_32, RAW58_SZ_64,
     },
-    encode::u8s_to_u32s_swapped_32_outer,
     error::DecodeError,
     unlikely::unlikely,
 };
@@ -52,20 +51,6 @@ fn truncate_and_swap_u64s_scalar<const BINARY_SZ: usize, const N: usize>(
         }
     }
 }
-
-// #[inline]
-// pub(crate) fn base58_decode_32_2(
-//     encoded: &[u8],
-//     out: &mut [u8; N_32],
-// ) -> Result<(), DecodeError> {
-//     let binary = base58_decode_before_be_convert::<BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32>(
-//         encoded, &DEC_TABLE_32,
-//     )?;
-//     let binary_u8 = binary.as_ptr() as *const u8;
-//     /* Convert each term to big endian for the final output */
-//     u8s_to_u32s_swapped_32_outer(out, &binary);
-//     base58_decode_after_be_convert(out, encoded)
-// }
 
 fn base58_decode_after_be_convert<const N: usize>(
     out: &mut [u8; N],
@@ -294,6 +279,7 @@ fn truncate_and_swap_u64s_64(out: &mut [u8; N_64], nums: &[u64; BINARY_SZ_64]) {
     *out = unsafe { core::mem::transmute(res) }
 }
 
+#[cfg(target_feature = "avx2")]
 fn truncate_and_swap_u64s_registers<
     const BINARY_SZ: usize,
     const N: usize,

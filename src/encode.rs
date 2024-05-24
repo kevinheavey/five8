@@ -297,54 +297,7 @@ fn u8s_to_u32s_swapped_mask_32() -> __m256i {
     }
 }
 
-pub(crate) fn u8s_to_u8s_as_swapped_u32s_32(out: &mut [u8; N_32], bytes: &[u8; N_32]) {
-    #[cfg(target_feature = "avx2")]
-    {
-        let register = u8s_to_u32s_swapped_32_register(bytes);
-        *out = unsafe { core::mem::transmute(register) };
-    }
-    #[cfg(not(target_feature = "avx2"))]
-    {
-        u8s_to_u32s_scalar::<N_32, BINARY_SZ_32>(out, bytes);
-    }
-}
-
-pub(crate) fn u8s_to_u8s_as_swapped_u32s_64(out: &mut [u8; N_64], bytes: &[u8; N_64]) {
-    #[cfg(target_feature = "avx2")]
-    {
-        let register = u8s_to_u32s_swapped_64_register(bytes);
-        *out = unsafe { core::mem::transmute(register) };
-    }
-    #[cfg(not(target_feature = "avx2"))]
-    {
-        u8s_to_u32s_scalar::<N_64, BINARY_SZ_64>(out, bytes);
-    }
-}
-
-pub(crate) fn u8s_to_u32s_swapped_32_outer(out: &mut [u8; N_32], binary: &[u32; BINARY_SZ_32]) {
-    let binary_u8: &[u8; N_32] = unsafe { core::mem::transmute(binary) };
-    #[cfg(target_feature = "avx2")]
-    {
-        u8s_to_u32s_swapped_32(binary_u8, out);
-    }
-    #[cfg(not(target_feature = "avx2"))]
-    {
-        u8s_to_u32s_scalar::<N_32, BINARY_SZ_32>(out, binary_u8);
-    }
-}
-
-fn u8s_to_u32s_swapped_64_outer(out: &mut [u8; N_64], binary: &[u32; BINARY_SZ_64]) {
-    let binary_u8: &[u8; N_64] = unsafe { core::mem::transmute(binary) };
-    #[cfg(target_feature = "avx2")]
-    {
-        u8s_to_u32s_swapped_64(binary_u8, out);
-    }
-    #[cfg(not(target_feature = "avx2"))]
-    {
-        u8s_to_u32s_scalar::<N_64, BINARY_SZ_64>(out, binary_u8);
-    }
-}
-
+#[cfg(not(target_feature = "avx2"))]
 fn u8s_to_u32s_scalar<const N: usize, const BINARY_SZ: usize>(
     out: &mut [u8; N],
     binary_u8: &[u8; N],
