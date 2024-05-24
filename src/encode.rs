@@ -426,7 +426,7 @@ fn make_binary_array_64(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
 }
 
 #[inline]
-pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut [u8]) {
+pub fn encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut [u8]) {
     let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -560,7 +560,7 @@ pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut 
 }
 
 #[inline]
-pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut [u8]) {
+pub fn encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut [u8]) {
     let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -674,7 +674,7 @@ pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut 
 #[cfg(test)]
 mod tests {
     use crate::{
-        base58_decode_32, base58_decode_64,
+        decode_32, decode_64,
         decode::{BASE58_ENCODED_32_SZ, BASE58_ENCODED_64_SZ},
     };
     #[cfg(target_feature = "avx2")]
@@ -687,7 +687,7 @@ mod tests {
         len: &mut u8,
         buf: &mut [u8; BASE58_ENCODED_32_SZ],
     ) -> String {
-        base58_encode_32(bytes, Some(len), buf);
+        encode_32(bytes, Some(len), buf);
         buf[..*len as usize].iter().map(|c| *c as char).collect()
     }
 
@@ -703,7 +703,7 @@ mod tests {
         let mut null_terminated = encoded.as_bytes().to_vec();
         null_terminated.push(b'\0');
         let mut decoded = [0u8; 32];
-        base58_decode_32(&null_terminated, &mut decoded).unwrap();
+        decode_32(&null_terminated, &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
@@ -719,7 +719,7 @@ mod tests {
         let mut null_terminated = encoded.as_bytes().to_vec();
         null_terminated.push(b'\0');
         let mut decoded = [0u8; 64];
-        base58_decode_64(&null_terminated, &mut decoded).unwrap();
+        decode_64(&null_terminated, &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
@@ -728,7 +728,7 @@ mod tests {
         len: &mut u8,
         buf: &mut [u8; BASE58_ENCODED_64_SZ],
     ) -> String {
-        base58_encode_64(&bytes, Some(len), buf);
+        encode_64(&bytes, Some(len), buf);
         buf[..*len as usize].iter().map(|c| *c as char).collect()
     }
 
@@ -793,7 +793,7 @@ mod tests {
         let encoded_ptr = encoded.as_ptr();
         assert_eq!(unsafe { *encoded_ptr.offset(31) }, b'2');
         let mut decoded = [0u8; 32];
-        base58_decode_32(encoded, &mut decoded).unwrap();
+        decode_32(encoded, &mut decoded).unwrap();
         let mut expected = [0u8; 32];
         expected[31] = 1;
         assert_eq!(expected, decoded);

@@ -250,7 +250,7 @@ pub(crate) const BASE58_ENCODED_32_SZ: usize = BASE58_ENCODED_32_LEN + 1; /* Inc
 pub(crate) const BASE58_ENCODED_64_SZ: usize = BASE58_ENCODED_64_LEN + 1; /* Including the nul terminator */
 
 #[inline]
-pub fn base58_decode_32(encoded: &[u8], out: &mut [u8; N_32]) -> Result<(), DecodeError> {
+pub fn decode_32(encoded: &[u8], out: &mut [u8; N_32]) -> Result<(), DecodeError> {
     let binary = base58_decode_before_be_convert::<
         BASE58_ENCODED_32_SZ,
         RAW58_SZ_32,
@@ -266,7 +266,7 @@ pub fn base58_decode_32(encoded: &[u8], out: &mut [u8; N_32]) -> Result<(), Deco
 }
 
 #[inline]
-pub fn base58_decode_64(encoded: &[u8], out: &mut [u8; N_64]) -> Result<(), DecodeError> {
+pub fn decode_64(encoded: &[u8], out: &mut [u8; N_64]) -> Result<(), DecodeError> {
     let binary = base58_decode_before_be_convert::<
         BASE58_ENCODED_64_SZ,
         RAW58_SZ_64,
@@ -333,7 +333,7 @@ mod tests {
         let mut null_terminated = encoded.as_bytes().to_vec();
         null_terminated.push(b'\0');
         let mut decoded = [0u8; 32];
-        let err = base58_decode_32(&null_terminated, &mut decoded).unwrap_err();
+        let err = decode_32(&null_terminated, &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
     }
 
@@ -341,7 +341,7 @@ mod tests {
         let mut null_terminated = encoded.as_bytes().to_vec();
         null_terminated.push(b'\0');
         let mut decoded = [0u8; 64];
-        let err = base58_decode_64(&null_terminated, &mut decoded).unwrap_err();
+        let err = decode_64(&null_terminated, &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
     }
 
