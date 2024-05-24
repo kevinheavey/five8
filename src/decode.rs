@@ -23,6 +23,7 @@ const BASE58_INVERSE: [u8; 75] = [
 ];
 
 #[cfg(not(target_feature = "avx2"))]
+#[inline(always)]
 fn truncate_and_swap_u64s_scalar<const BINARY_SZ: usize, const N: usize>(
     out: &mut [u8; N],
     binary: &[u64; BINARY_SZ],

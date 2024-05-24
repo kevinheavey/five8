@@ -332,11 +332,12 @@ fn u8s_to_u32s_swapped_32_register(bytes: &[u8; N_32]) -> __m256i {
 #[inline(always)]
 fn u8s_to_u32s_swapped_64_register(bytes: &[u8; N_64]) -> [__m256i; 2] {
     let mask = u8s_to_u32s_swapped_mask_32();
-    let first_load = unsafe { _mm256_loadu_si256(bytes[..32].as_ptr() as *const __m256i) };
+    let first_load =
+        unsafe { _mm256_loadu_si256(bytes.get_unchecked(..32).as_ptr() as *const __m256i) };
     let first = unsafe { _mm256_shuffle_epi8(first_load, mask) };
     [first, unsafe {
         _mm256_shuffle_epi8(
-            _mm256_loadu_si256(bytes[32..64].as_ptr() as *const __m256i),
+            _mm256_loadu_si256(bytes.get_unchecked(32..64).as_ptr() as *const __m256i),
             mask,
         )
     }]
