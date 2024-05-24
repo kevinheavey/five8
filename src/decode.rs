@@ -300,12 +300,14 @@ fn truncate_and_swap_u64s_registers<
     });
     for i in 0..N_REGISTERS {
         let register = holder[i];
-        holder[i] = unsafe { core::arch::x86_64::_mm256_shuffle_epi8(register, mask) };
+        unsafe {
+            *holder.get_unchecked_mut(i) = core::arch::x86_64::_mm256_shuffle_epi8(register, mask)
+        };
     }
     let splits: [[core::arch::x86_64::__m128i; 2]; N_REGISTERS] =
         from_fn(|i| unsafe { core::mem::transmute(holder[i]) });
     from_fn(|i| {
-        let split = splits[i];
+        let split = unsafe { *splits.get_unchecked(i) };
         unsafe { core::arch::x86_64::_mm_unpacklo_epi64(split[0], split[1]) }
     })
 }

@@ -12,28 +12,24 @@ pub(crate) fn fd_ulong_find_lsb_w_default(x: u64, d: i32) -> i32 {
         // on why we use options(att_syntax).
         // The non-bmi1 code didn't work before adding that.
         #[cfg(target_feature = "bmi1")]
-        {
-            unsafe {
-                core::arch::asm!(
-                    "tzcnt {0}, {0}",
-                    "cmovb {1}, {0}",
-                    inout(reg) r.u,
-                    in(reg) c.u,
-                    options(att_syntax)
-                )
-            }
+        unsafe {
+            core::arch::asm!(
+                "tzcnt {0}, {0}",
+                "cmovb {1}, {0}",
+                inout(reg) r.u,
+                in(reg) c.u,
+                options(att_syntax)
+            )
         };
         #[cfg(not(target_feature = "bmi1"))]
-        {
-            unsafe {
-                core::arch::asm!(
-                    "bsf {0}, {0}",
-                    "cmovz {1}, {0}",
-                    inout(reg) r.u,
-                    in(reg) c.u,
-                    options(att_syntax)
-                )
-            }
+        unsafe {
+            core::arch::asm!(
+                "bsf {0}, {0}",
+                "cmovz {1}, {0}",
+                inout(reg) r.u,
+                in(reg) c.u,
+                options(att_syntax)
+            )
         };
         unsafe { r.i as i32 }
     }

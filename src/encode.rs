@@ -150,7 +150,7 @@ fn in_leading_0s_64_avx(bytes: *const u8) -> u64 {
 
 #[cfg(not(target_feature = "avx2"))]
 #[inline(always)]
-fn in_leading_0s_scalar<const BYTE_CNT: usize>(bytes: *const u8) -> usize {
+fn in_leading_0s_scalar<const BYTE_CNT: usize>(bytes: *const u8) -> u64 {
     let mut in_leading_0s = 0;
     while in_leading_0s < BYTE_CNT {
         if unsafe { bytes.add(in_leading_0s).read() != 0 } {
@@ -158,7 +158,7 @@ fn in_leading_0s_scalar<const BYTE_CNT: usize>(bytes: *const u8) -> usize {
         }
         in_leading_0s += 1;
     }
-    in_leading_0s
+    in_leading_0s as u64
 }
 
 #[inline(always)]
@@ -181,7 +181,7 @@ fn intermediate_to_base58_scalar<
     const INTERMEDIATE_SZ: usize,
 >(
     intermediate: &Intermediate<INTERMEDIATE_SZ_W_PADDING>,
-    in_leading_0s: usize,
+    in_leading_0s: u64,
     out: &mut [u8],
 ) -> usize {
     /* Convert intermediate form to base 58.  This form of conversion
@@ -242,7 +242,7 @@ fn intermediate_to_base58_scalar<
     When N==64, RAW58_SZ is 90, so this gives skip >= 1.59.
 
     Regardless, raw_leading_0s - in_leading_0s >= 0. */
-    let skip = raw_leading_0s - in_leading_0s;
+    let skip = raw_leading_0s - in_leading_0s as usize;
     for i in 0..(RAW58_SZ - skip) {
         unsafe {
             *out.get_unchecked_mut(i) = BASE58_CHARS[raw_base58[skip + i] as usize];
@@ -530,7 +530,7 @@ pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut 
                 )
             };
 
-            unsafe { wuc_stu(out_ptr.offset(32 - skip as isize) as *mut u8, base58_1) };
+            unsafe { wuc_stu(out_ptr.offset(32 - skip as isize), base58_1) };
 
             let last = unsafe { _mm_bslli_si128(_mm256_extractf128_si256(base58_2, 1), 6) };
             unsafe {
@@ -605,7 +605,7 @@ pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut 
             let raw_leading_0s = count_leading_zeros_45(compact0, compact1);
             let base58_0 = raw_to_base58(compact0);
             let base58_1 = raw_to_base58(compact1);
-            let skip = raw_leading_0s - in_leading_0s as u64;
+            let skip = raw_leading_0s - in_leading_0s;
             /* We know the final string is between 32 and 44 characters, so skip
              has to be in [1, 13].
 

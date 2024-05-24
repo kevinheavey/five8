@@ -87,7 +87,7 @@ pub(crate) fn intermediate_to_raw(intermediate: __m256i) -> __m256i {
     use mul_epu32. */
     let ca = wl_bcast(2369637129);
     let cb = wl_bcast(1307386003);
-    let _58 = wl_bcast(58);
+    let broadcast_58 = wl_bcast(58);
     /* Divide each ulong in r by {58, 58^2=3364}, taking the floor of the
     division.  I used gcc to convert the division to magic
     multiplication. */
@@ -95,13 +95,13 @@ pub(crate) fn intermediate_to_raw(intermediate: __m256i) -> __m256i {
     /* div(k) stores floor(x/58^k). rem(k) stores div(k) % 58 */
     let div0 = intermediate;
     let div1 = wl_shru::<37>(unsafe { _mm256_mul_epu32(div0, ca) });
-    let rem0 = wl_sub(div0, unsafe { _mm256_mul_epu32(div1, _58) });
+    let rem0 = wl_sub(div0, unsafe { _mm256_mul_epu32(div1, broadcast_58) });
     let div2 = div3364(div0);
-    let rem1 = wl_sub(div1, unsafe { _mm256_mul_epu32(div2, _58) });
+    let rem1 = wl_sub(div1, unsafe { _mm256_mul_epu32(div2, broadcast_58) });
     let div3 = div3364(div1);
-    let rem2 = wl_sub(div2, unsafe { _mm256_mul_epu32(div3, _58) });
+    let rem2 = wl_sub(div2, unsafe { _mm256_mul_epu32(div3, broadcast_58) });
     let div4 = div3364(div2);
-    let rem3 = wl_sub(div3, unsafe { _mm256_mul_epu32(div4, _58) });
+    let rem3 = wl_sub(div3, unsafe { _mm256_mul_epu32(div4, broadcast_58) });
     let rem4 = div4;
     /* Okay, we have all 20 terms we need at this point, but they're
     spread out over 5 registers. Each value is stored as an 8B long,
