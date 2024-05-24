@@ -421,52 +421,45 @@ fn u8s_to_u32s_swapped_64(bytes: &[u8; N_64], out: &mut [u8; N_64]) {
 
 #[inline(always)]
 fn make_binary_array_32(bytes: &[u8; N_32]) -> [u32; BINARY_SZ_32] {
-    let mut out = [0u8; N_32];
-    #[cfg(target_feature = "avx2")]
-    {
-        u8s_to_u32s_swapped_32(bytes, &mut out);
-    }
-    #[cfg(not(target_feature = "avx2"))]
-    {
-        u8s_to_u32s_scalar::<N_32, BINARY_SZ_32>(&mut out, bytes);
-    }
-    unsafe { core::mem::transmute(out) }
-    // let res_u8 = make_binary_array_u8::<N_32, BINARY_SZ_32>(bytes);
-    // unsafe { core::mem::transmute(res_u8) }
-}
-
-#[inline(always)]
-fn make_binary_array_64(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
-    let mut out = [0u8; N_64];
-    #[cfg(target_feature = "avx2")]
-    {
-        u8s_to_u32s_swapped_64(bytes, &mut out);
-    }
-    #[cfg(not(target_feature = "avx2"))]
-    {
-        u8s_to_u32s_scalar::<N_64, BINARY_SZ_64>(&mut out, bytes);
-    }
-    unsafe { core::mem::transmute(out) }
-    // u8s_to_u8s_as_swapped_u32s_64(&mut out, bytes);
-    // unsafe { core::mem::transmute(res_u8) }
-}
-
-#[inline(always)]
-fn make_binary_array_u8<const N: usize, const BINARY_SZ: usize>(bytes: &[u8; N]) -> [u8; N] {
     // on LE take four-byte blocks and reverse them
     // 3 2 1 0 7 6 5 4 etc
     // on BE this is a noop
     #[cfg(target_endian = "little")]
     {
-        let mut res_u8 = [0u8; N];
-        for i in 0..BINARY_SZ {
-            let idx = i * 4;
-            res_u8[idx] = bytes[idx + 3];
-            res_u8[idx + 1] = bytes[idx + 2];
-            res_u8[idx + 2] = bytes[idx + 1];
-            res_u8[idx + 3] = bytes[idx];
+        let mut out = [0u8; N_32];
+        #[cfg(target_feature = "avx2")]
+        {
+            u8s_to_u32s_swapped_32(bytes, &mut out);
         }
-        res_u8
+        #[cfg(not(target_feature = "avx2"))]
+        {
+            u8s_to_u32s_scalar::<N_32, BINARY_SZ_32>(&mut out, bytes);
+        }
+        unsafe { core::mem::transmute(out) }
+    }
+    #[cfg(target_endian = "big")]
+    {
+        bytes
+    }
+}
+
+#[inline(always)]
+fn make_binary_array_64(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
+    // on LE take four-byte blocks and reverse them
+    // 3 2 1 0 7 6 5 4 etc
+    // on BE this is a noop
+    #[cfg(target_endian = "little")]
+    {
+        let mut out = [0u8; N_64];
+        #[cfg(target_feature = "avx2")]
+        {
+            u8s_to_u32s_swapped_64(bytes, &mut out);
+        }
+        #[cfg(not(target_feature = "avx2"))]
+        {
+            u8s_to_u32s_scalar::<N_64, BINARY_SZ_64>(&mut out, bytes);
+        }
+        unsafe { core::mem::transmute(out) }
     }
     #[cfg(target_endian = "big")]
     {
