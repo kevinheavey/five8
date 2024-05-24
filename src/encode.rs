@@ -11,8 +11,8 @@ use {
         wl_shru_vector, wuc_ldu, wuc_stu,
     },
     core::arch::x86_64::{
-        __m128i, _mm256_extractf128_si256, _mm256_maskstore_epi64, _mm_bslli_si128,
-        _mm_storeu_si128,
+        __m128i, __m256i, _mm256_extractf128_si256, _mm256_loadu_si256, _mm256_maskstore_epi64,
+        _mm256_set_epi8, _mm256_shuffle_epi8, _mm_bslli_si128, _mm_storeu_si128,
     },
 };
 
@@ -284,6 +284,53 @@ fn adjust_intermediate_array<
 fn init_intermediate_array<const INTERMEDIATE_SZ_W_PADDING: usize>(
 ) -> Intermediate<INTERMEDIATE_SZ_W_PADDING> {
     Intermediate([0u64; INTERMEDIATE_SZ_W_PADDING])
+}
+
+#[inline(always)]
+#[cfg(target_feature = "avx2")]
+fn u8s_to_u32s_swapped_mask_32() -> __m256i {
+    unsafe {
+        _mm256_set_epi8(
+            28, 29, 30, 31, 24, 25, 26, 27, 20, 21, 22, 23, 16, 17, 18, 19, 12, 13, 14, 15, 8, 9,
+            10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
+        )
+    }
+}
+
+#[cfg(target_feature = "avx2")]
+fn u8s_to_u32s_swapped_32(bytes: [u8; N_32]) -> [u8; N_32] {
+    let mask = u8s_to_u32s_swapped_mask_32();
+    let res_m256i = unsafe { _mm256_shuffle_epi8(core::mem::transmute(bytes), mask) };
+    unsafe { core::mem::transmute(res_m256i) }
+}
+
+// fn u8s_to_u32s_swapped_64(bytes: [u8; N_64]) -> [u8; N_64] {
+//     // this fails with SIGILL: illegal instruction. Maybe some day it won't.
+//     let mask = unsafe {
+//         core::arch::x86_64::_mm512_set_epi8(
+//             60, 61, 62, 63, 56, 57, 58, 59, 52, 53, 54, 55, 48, 49, 50, 51, 44, 45, 46, 47, 40, 41,
+//             42, 43, 36, 37, 38, 39, 32, 33, 34, 35, 28, 29, 30, 31, 24, 25, 26, 27, 20, 21, 22, 23,
+//             16, 17, 18, 19, 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
+//         )
+//     };
+//     println!("mask: {mask:?}");
+//     let res_m256i =
+//         unsafe { core::arch::x86_64::_mm512_shuffle_epi8(core::mem::transmute(bytes), mask) };
+//     unsafe { core::mem::transmute(res_m256i) }
+// }
+
+#[cfg(target_feature = "avx2")]
+fn u8s_to_u32s_swapped_64(bytes: [u8; N_64]) -> [u8; N_64] {
+    let mask = u8s_to_u32s_swapped_mask_32();
+    let first_load = unsafe { _mm256_loadu_si256(bytes[..32].as_ptr() as *const __m256i) };
+    let first = unsafe { _mm256_shuffle_epi8(first_load, mask) };
+    let res_nested: [__m256i; 2] = [first, unsafe {
+        _mm256_shuffle_epi8(
+            _mm256_loadu_si256(bytes[32..64].as_ptr() as *const __m256i),
+            mask,
+        )
+    }];
+    unsafe { core::mem::transmute(res_nested) }
 }
 
 #[inline(always)]
@@ -736,6 +783,35 @@ mod tests {
             &mut buf,
             88,
             "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roP",
+        );
+    }
+
+    #[cfg(target_feature = "avx2")]
+    #[test]
+    fn test_u8s_to_u32s_swapped_32() {
+        let bytes: [u8; 32] = core::array::from_fn(|i| i as u8);
+        let res = u8s_to_u32s_swapped_32(bytes);
+        assert_eq!(
+            res,
+            [
+                3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12, 19, 18, 17, 16, 23, 22, 21,
+                20, 27, 26, 25, 24, 31, 30, 29, 28
+            ]
+        );
+    }
+
+    #[cfg(target_feature = "avx2")]
+    #[test]
+    fn test_u8s_to_u32s_swapped_64() {
+        let bytes: [u8; 64] = core::array::from_fn(|i| i as u8);
+        let res = u8s_to_u32s_swapped_64(bytes);
+        assert_eq!(
+            res,
+            [
+                3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12, 19, 18, 17, 16, 23, 22, 21,
+                20, 27, 26, 25, 24, 31, 30, 29, 28, 35, 34, 33, 32, 39, 38, 37, 36, 43, 42, 41, 40,
+                47, 46, 45, 44, 51, 50, 49, 48, 55, 54, 53, 52, 59, 58, 57, 56, 63, 62, 61, 60
+            ]
         );
     }
 }
