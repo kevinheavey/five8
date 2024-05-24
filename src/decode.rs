@@ -1,4 +1,4 @@
-use core::{array::from_fn, mem::size_of};
+use core::array::from_fn;
 
 use crate::{
     consts::{
@@ -42,7 +42,7 @@ pub(crate) fn base58_decode<
             break;
         }
         /* If c<'1', this will underflow and idx will be huge */
-        let idx = (c as u8 as u64).wrapping_sub(BASE58_INVERSE_TABLE_OFFSET as u64);
+        let idx = (c as u64).wrapping_sub(BASE58_INVERSE_TABLE_OFFSET as u64);
         let idx = idx.min(BASE58_INVERSE_TABLE_SENTINEL as u64);
         char_cnt += 1;
         if unlikely(unsafe { *BASE58_INVERSE.get_unchecked(idx as usize) } == BASE58_INVALID_CHAR) {
@@ -112,13 +112,28 @@ pub(crate) fn base58_decode<
     if unlikely(unsafe { *binary.get_unchecked(0) } > 0xFFFFFFFF) {
         return Err(DecodeError::LargestTermTooHigh);
     }
+    let binary_u8 = binary.as_ptr() as *const u8;
     /* Convert each term to big endian for the final output */
     for i in 0..BINARY_SZ {
-        let swapped = (unsafe { *binary.get_unchecked(i) } as u32).to_be_bytes();
-        let idx = i * size_of::<u32>();
+        // take the first four bytes of each 8-byte block and reverse them:
+        // 3 2 1 0 11 10 9 8 19 18 17 16 27 26 25 24 etc
+        // or if on a BE machine, just take the last four bytes of each 8-byte block:
+        // 4 5 6 7 12 13 14 15 20 21 22 23 etc
+        let binary_u8_idx = i * 8;
+        let out_idx = i * 4;
+        #[cfg(target_endian = "little")]
         unsafe {
-            out.get_unchecked_mut(idx..idx + size_of::<u32>())
-                .copy_from_slice(&swapped);
+            *out.get_unchecked_mut(out_idx) = *binary_u8.add(binary_u8_idx + 3);
+            *out.get_unchecked_mut(out_idx + 1) = *binary_u8.add(binary_u8_idx + 2);
+            *out.get_unchecked_mut(out_idx + 2) = *binary_u8.add(binary_u8_idx + 1);
+            *out.get_unchecked_mut(out_idx + 3) = *binary_u8.add(binary_u8_idx);
+        }
+        #[cfg(target_endian = "big")]
+        unsafe {
+            *out.get_unchecked_mut(out_idx) = *binary_u8.add(binary_u8_idx + 4);
+            *out.get_unchecked_mut(out_idx + 1) = *binary_u8.add(binary_u8_idx + 5);
+            *out.get_unchecked_mut(out_idx + 2) = *binary_u8.add(binary_u8_idx + 6);
+            *out.get_unchecked_mut(out_idx + 3) = *binary_u8.add(binary_u8_idx + 7);
         }
     }
     /* Make sure the encoded version has the same number of leading '1's
