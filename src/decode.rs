@@ -53,6 +53,7 @@ fn truncate_and_swap_u64s_scalar<const BINARY_SZ: usize, const N: usize>(
     }
 }
 
+#[inline(always)]
 fn base58_decode_after_be_convert<const N: usize>(
     out: &mut [u8; N],
     encoded: &[u8],
@@ -272,18 +273,21 @@ pub fn base58_decode_64(encoded: &[u8], out: &mut [u8; N_64]) -> Result<(), Deco
 }
 
 #[cfg(target_feature = "avx2")]
+#[inline(always)]
 fn truncate_and_swap_u64s_32(out: &mut [u8; N_32], nums: &[u64; BINARY_SZ_32]) {
     let res = truncate_and_swap_u64s_registers::<BINARY_SZ_32, N_32, 2>(nums);
     *out = unsafe { core::mem::transmute(res) }
 }
 
 #[cfg(target_feature = "avx2")]
+#[inline(always)]
 fn truncate_and_swap_u64s_64(out: &mut [u8; N_64], nums: &[u64; BINARY_SZ_64]) {
     let res = truncate_and_swap_u64s_registers::<BINARY_SZ_64, N_64, 4>(nums);
     *out = unsafe { core::mem::transmute(res) }
 }
 
 #[cfg(target_feature = "avx2")]
+#[inline(always)]
 fn truncate_and_swap_u64s_registers<
     const BINARY_SZ: usize,
     const N: usize,

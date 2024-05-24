@@ -175,6 +175,7 @@ fn add_binary_to_intermediate<const INTERMEDIATE_SZ_W_PADDING: usize, const BINA
 }
 
 #[cfg(not(target_feature = "avx2"))]
+#[inline(always)]
 fn intermediate_to_base58_scalar<
     const INTERMEDIATE_SZ_W_PADDING: usize,
     const RAW58_SZ: usize,
@@ -286,8 +287,8 @@ fn init_intermediate_array<const INTERMEDIATE_SZ_W_PADDING: usize>(
     Intermediate([0u64; INTERMEDIATE_SZ_W_PADDING])
 }
 
-#[inline(always)]
 #[cfg(target_feature = "avx2")]
+#[inline(always)]
 fn u8s_to_u32s_swapped_mask_32() -> __m256i {
     unsafe {
         _mm256_set_epi8(
@@ -298,6 +299,7 @@ fn u8s_to_u32s_swapped_mask_32() -> __m256i {
 }
 
 #[cfg(not(target_feature = "avx2"))]
+#[inline(always)]
 fn u8s_to_u32s_scalar<const N: usize, const BINARY_SZ: usize>(
     out: &mut [u8; N],
     binary_u8: &[u8; N],
@@ -352,6 +354,7 @@ fn u8s_to_u32s_swapped_32(bytes: &[u8; N_32], out: &mut [u8; N_32]) {
 }
 
 #[cfg(target_feature = "avx2")]
+#[inline(always)]
 fn u8s_to_u32s_swapped_64(bytes: &[u8; N_64], out: &mut [u8; N_64]) {
     let res_nested = u8s_to_u32s_swapped_64_register(bytes);
     let out_bytes: [u8; N_64] = unsafe { core::mem::transmute(res_nested) };
