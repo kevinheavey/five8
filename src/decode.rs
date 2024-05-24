@@ -23,23 +23,12 @@ const BASE58_INVERSE: [u8; 75] = [
     53, 54, 55, 56, 57, BAD,
 ];
 
-#[inline]
-pub(crate) fn base58_decode<
-    const ENCODED_SZ: usize,
-    const RAW58_SZ: usize,
-    const INTERMEDIATE_SZ: usize,
-    const BINARY_SZ: usize,
-    const N: usize,
->(
-    encoded: &[u8],
+#[cfg(not(target_feature = "avx2"))]
+fn truncate_and_swap_u64s_scalar<const BINARY_SZ: usize, const N: usize>(
     out: &mut [u8; N],
-    dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
-) -> Result<(), DecodeError> {
-    let binary = base58_decode_before_be_convert::<ENCODED_SZ, RAW58_SZ, INTERMEDIATE_SZ, BINARY_SZ>(
-        encoded, dec_table,
-    )?;
+    binary: &[u64; BINARY_SZ],
+) {
     let binary_u8 = binary.as_ptr() as *const u8;
-    /* Convert each term to big endian for the final output */
     for i in 0..BINARY_SZ {
         // take the first four bytes of each 8-byte block and reverse them:
         // 3 2 1 0 11 10 9 8 19 18 17 16 27 26 25 24 etc
@@ -62,7 +51,6 @@ pub(crate) fn base58_decode<
             *out.get_unchecked_mut(out_idx + 3) = *binary_u8.add(binary_u8_idx + 7);
         }
     }
-    base58_decode_after_be_convert(out, encoded)
 }
 
 // #[inline]
@@ -264,20 +252,76 @@ pub(crate) const BASE58_ENCODED_64_SZ: usize = BASE58_ENCODED_64_LEN + 1; /* Inc
 
 #[inline]
 pub fn base58_decode_32(encoded: &[u8], out: &mut [u8; N_32]) -> Result<(), DecodeError> {
-    base58_decode::<BASE58_ENCODED_32_SZ, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32, N_32>(
-        encoded,
-        out,
-        &DEC_TABLE_32,
-    )
+    let binary = base58_decode_before_be_convert::<
+        BASE58_ENCODED_32_SZ,
+        RAW58_SZ_32,
+        INTERMEDIATE_SZ_32,
+        BINARY_SZ_32,
+    >(encoded, &DEC_TABLE_32)?;
+    /* Convert each term to big endian for the final output */
+    #[cfg(target_feature = "avx2")]
+    truncate_and_swap_u64s_32(out, &binary);
+    #[cfg(not(target_feature = "avx2"))]
+    truncate_and_swap_u64s_scalar(out, &binary);
+    base58_decode_after_be_convert(out, encoded)
 }
 
 #[inline]
 pub fn base58_decode_64(encoded: &[u8], out: &mut [u8; N_64]) -> Result<(), DecodeError> {
-    base58_decode::<BASE58_ENCODED_64_SZ, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64, N_64>(
-        encoded,
-        out,
-        &DEC_TABLE_64,
-    )
+    let binary = base58_decode_before_be_convert::<
+        BASE58_ENCODED_64_SZ,
+        RAW58_SZ_64,
+        INTERMEDIATE_SZ_64,
+        BINARY_SZ_64,
+    >(encoded, &DEC_TABLE_64)?;
+    /* Convert each term to big endian for the final output */
+    #[cfg(target_feature = "avx2")]
+    truncate_and_swap_u64s_64(out, &binary);
+    #[cfg(not(target_feature = "avx2"))]
+    truncate_and_swap_u64s_scalar(out, &binary);
+    base58_decode_after_be_convert(out, encoded)
+}
+
+#[cfg(target_feature = "avx2")]
+fn truncate_and_swap_u64s_32(out: &mut [u8; N_32], nums: &[u64; BINARY_SZ_32]) {
+    let res = truncate_and_swap_u64s_registers::<BINARY_SZ_32, N_32, 2>(nums);
+    *out = unsafe { core::mem::transmute(res) }
+}
+
+#[cfg(target_feature = "avx2")]
+fn truncate_and_swap_u64s_64(out: &mut [u8; N_64], nums: &[u64; BINARY_SZ_64]) {
+    let res = truncate_and_swap_u64s_registers::<BINARY_SZ_64, N_64, 4>(nums);
+    *out = unsafe { core::mem::transmute(res) }
+}
+
+fn truncate_and_swap_u64s_registers<
+    const BINARY_SZ: usize,
+    const N: usize,
+    const N_REGISTERS: usize,
+>(
+    nums: &[u64; BINARY_SZ],
+) -> [core::arch::x86_64::__m128i; N_REGISTERS] {
+    let mask = unsafe {
+        core::arch::x86_64::_mm256_set_epi8(
+            -128, -128, -128, -128, -128, -128, -128, -128, 8, 9, 10, 11, 0, 1, 2, 3, -128, -128,
+            -128, -128, -128, -128, -128, -128, 8, 9, 10, 11, 0, 1, 2, 3,
+        )
+    };
+    let mut holder: [core::arch::x86_64::__m256i; N_REGISTERS] = from_fn(|i| unsafe {
+        core::arch::x86_64::_mm256_loadu_si256(
+            nums[(i * 4)..(4 + i * 4)].as_ptr() as *const core::arch::x86_64::__m256i
+        )
+    });
+    for i in 0..N_REGISTERS {
+        let register = holder[i];
+        holder[i] = unsafe { core::arch::x86_64::_mm256_shuffle_epi8(register, mask) };
+    }
+    let splits: [[core::arch::x86_64::__m128i; 2]; N_REGISTERS] =
+        from_fn(|i| unsafe { core::mem::transmute(holder[i]) });
+    from_fn(|i| {
+        let split = splits[i];
+        unsafe { core::arch::x86_64::_mm_unpacklo_epi64(split[0], split[1]) }
+    })
 }
 
 #[cfg(test)]
@@ -407,6 +451,46 @@ mod tests {
         check_bad_decode_64(
             DecodeError::InvalidChar(108),
             "111111111111111111111111111111111111111111111111111111111111111l",
+        );
+    }
+
+    #[cfg(target_feature = "avx2")]
+    #[test]
+    fn test_pshufb_32() {
+        // take the first four bytes of each 8-byte block and reverse them:
+        // 3 2 1 0 11 10 9 8 19 18 17 16 27 26 25 24 etc
+
+        let bytes: [u8; 64] = from_fn(|i| i as u8);
+        let nums = unsafe { core::mem::transmute(bytes) };
+        let mut out = [0u8; 32];
+        truncate_and_swap_u64s_32(&mut out, &nums);
+        assert_eq!(
+            out,
+            [
+                3, 2, 1, 0, 11, 10, 9, 8, 19, 18, 17, 16, 27, 26, 25, 24, 35, 34, 33, 32, 43, 42,
+                41, 40, 51, 50, 49, 48, 59, 58, 57, 56
+            ]
+        );
+    }
+
+    #[cfg(target_feature = "avx2")]
+    #[test]
+    fn test_pshufb_64() {
+        // take the first four bytes of each 8-byte block and reverse them:
+        // 3 2 1 0 11 10 9 8 19 18 17 16 27 26 25 24 etc
+
+        let bytes: [u8; 128] = from_fn(|i| i as u8);
+        let nums = unsafe { core::mem::transmute(bytes) };
+        let mut out = [0u8; 64];
+        truncate_and_swap_u64s_64(&mut out, &nums);
+        assert_eq!(
+            out,
+            [
+                3, 2, 1, 0, 11, 10, 9, 8, 19, 18, 17, 16, 27, 26, 25, 24, 35, 34, 33, 32, 43, 42,
+                41, 40, 51, 50, 49, 48, 59, 58, 57, 56, 67, 66, 65, 64, 75, 74, 73, 72, 83, 82, 81,
+                80, 91, 90, 89, 88, 99, 98, 97, 96, 107, 106, 105, 104, 115, 114, 113, 112, 123,
+                122, 121, 120
+            ]
         );
     }
 }
