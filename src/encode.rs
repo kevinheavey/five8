@@ -107,18 +107,6 @@ const ENC_TABLE_64: [[u32; INTERMEDIATE_SZ_64 - 1]; BINARY_SZ_64] = [
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
 ];
 
-#[inline(always)]
-fn fd_uint_load_4(p: *const u8) -> u32 {
-    let mut t: u32 = 0;
-    unsafe {
-        // Unsafe block needed for dereferencing raw pointer
-        let p_t = &mut t as *mut u32;
-        let p_v = (p as *const u32).read_unaligned();
-        *p_t = p_v;
-    }
-    t
-}
-
 #[cfg(target_feature = "avx2")]
 const fn fd_ulong_align_up(x: usize, a: usize) -> usize {
     ((x) + ((a) - 1)) & (!((a) - 1))
