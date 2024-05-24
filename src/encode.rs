@@ -1,5 +1,3 @@
-use core::array::from_fn;
-
 use crate::consts::{
     BINARY_SZ_32, BINARY_SZ_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64, RAW58_SZ_32,
     RAW58_SZ_64,
@@ -110,18 +108,13 @@ const ENC_TABLE_64: [[u32; INTERMEDIATE_SZ_64 - 1]; BINARY_SZ_64] = [
 ];
 
 #[inline(always)]
-fn fd_uint_bswap(x: u32) -> u32 {
-    x.to_be()
-}
-
-#[inline(always)]
 fn fd_uint_load_4(p: *const u8) -> u32 {
     let mut t: u32 = 0;
     unsafe {
         // Unsafe block needed for dereferencing raw pointer
         let p_t = &mut t as *mut u32;
-        let p_p = p as *const u32;
-        core::ptr::copy_nonoverlapping(p_p, p_t, 1);
+        let p_v = (p as *const u32).read_unaligned();
+        *p_t = p_v;
     }
     t
 }
@@ -306,14 +299,30 @@ fn init_intermediate_array<const INTERMEDIATE_SZ_W_PADDING: usize>(
 }
 
 #[inline(always)]
-fn make_binary_array<const BINARY_SZ: usize>(bytes: *const u8) -> [u32; BINARY_SZ] {
-    /* X = sum_i bytes[i] * 2^(8*(BYTE_CNT-1-i)) */
+fn make_binary_array_32(bytes: &[u8; N_32]) -> [u32; BINARY_SZ_32] {
+    let res_u8 = make_binary_array_u8::<N_32, BINARY_SZ_32>(bytes);
+    unsafe { core::mem::transmute(res_u8) }
+}
 
-    /* Convert N to 32-bit limbs:
-    X = sum_i binary[i] * 2^(32*(BINARY_SZ-1-i)) */
-    from_fn(|i| unsafe {
-        fd_uint_bswap(fd_uint_load_4(bytes.add(i * core::mem::size_of::<u32>())))
-    })
+#[inline(always)]
+fn make_binary_array_64(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
+    let res_u8 = make_binary_array_u8::<N_64, BINARY_SZ_64>(bytes);
+    unsafe { core::mem::transmute(res_u8) }
+}
+
+fn make_binary_array_u8<const N: usize, const BINARY_SZ: usize>(bytes: &[u8; N]) -> [u8; N] {
+    // on LE take four-byte blocks and reverse them
+    // 3 2 1 0 7 6 5 4 etc
+    // on BE just take four-byte blocks
+    let mut res_u8 = [0u8; N];
+    for i in 0..BINARY_SZ {
+        let idx = i * 4;
+        res_u8[idx] = bytes[idx + 3];
+        res_u8[idx + 1] = bytes[idx + 2];
+        res_u8[idx + 2] = bytes[idx + 1];
+        res_u8[idx + 3] = bytes[idx];
+    }
+    res_u8
 }
 
 #[inline]
@@ -329,7 +338,7 @@ pub fn base58_encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut 
             in_leading_0s_scalar::<N_64>(bytes_ptr)
         }
     };
-    let binary = make_binary_array::<BINARY_SZ_64>(bytes_ptr);
+    let binary = make_binary_array_64(bytes);
     /* Convert to the intermediate format:
       X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i))
     Initially, we don't require intermediate[i] < 58^5, but we do want
@@ -463,7 +472,7 @@ pub fn base58_encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut 
             in_leading_0s_scalar::<N_32>(bytes_ptr)
         }
     };
-    let binary = make_binary_array::<BINARY_SZ_32>(bytes_ptr);
+    let binary = make_binary_array_32(bytes);
     /* Convert to the intermediate format:
       X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i))
     Initially, we don't require intermediate[i] < 58^5, but we do want
