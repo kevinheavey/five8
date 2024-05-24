@@ -298,19 +298,27 @@ fn make_binary_array_64(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
     unsafe { core::mem::transmute(res_u8) }
 }
 
+#[inline(always)]
 fn make_binary_array_u8<const N: usize, const BINARY_SZ: usize>(bytes: &[u8; N]) -> [u8; N] {
     // on LE take four-byte blocks and reverse them
     // 3 2 1 0 7 6 5 4 etc
-    // on BE just take four-byte blocks
-    let mut res_u8 = [0u8; N];
-    for i in 0..BINARY_SZ {
-        let idx = i * 4;
-        res_u8[idx] = bytes[idx + 3];
-        res_u8[idx + 1] = bytes[idx + 2];
-        res_u8[idx + 2] = bytes[idx + 1];
-        res_u8[idx + 3] = bytes[idx];
+    // on BE this is a noop
+    #[cfg(target_endian = "little")]
+    {
+        let mut res_u8 = [0u8; N];
+        for i in 0..BINARY_SZ {
+            let idx = i * 4;
+            res_u8[idx] = bytes[idx + 3];
+            res_u8[idx + 1] = bytes[idx + 2];
+            res_u8[idx + 2] = bytes[idx + 1];
+            res_u8[idx + 3] = bytes[idx];
+        }
+        res_u8
     }
-    res_u8
+    #[cfg(target_endian = "big")]
+    {
+        bytes
+    }
 }
 
 #[inline]
