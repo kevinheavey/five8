@@ -2,6 +2,7 @@ use crate::consts::{
     BINARY_SZ_32, BINARY_SZ_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64, RAW58_SZ_32,
     RAW58_SZ_64,
 };
+use core::mem::transmute;
 #[cfg(target_feature = "avx2")]
 use {
     crate::avx::{
@@ -349,7 +350,7 @@ fn u8s_to_u32s_swapped_64_register(bytes: &[u8; N_64]) -> [__m256i; 2] {
 #[inline(always)]
 fn u8s_to_u32s_swapped_32(bytes: &[u8; N_32], out: &mut [u8; N_32]) {
     let res_m256i = u8s_to_u32s_swapped_32_register(bytes);
-    let out_bytes: [u8; N_32] = unsafe { core::mem::transmute(res_m256i) };
+    let out_bytes: [u8; N_32] = unsafe { transmute(res_m256i) };
     *out = out_bytes;
 }
 
@@ -357,7 +358,7 @@ fn u8s_to_u32s_swapped_32(bytes: &[u8; N_32], out: &mut [u8; N_32]) {
 #[inline(always)]
 fn u8s_to_u32s_swapped_64(bytes: &[u8; N_64], out: &mut [u8; N_64]) {
     let res_nested = u8s_to_u32s_swapped_64_register(bytes);
-    let out_bytes: [u8; N_64] = unsafe { core::mem::transmute(res_nested) };
+    let out_bytes: [u8; N_64] = unsafe { transmute(res_nested) };
     *out = out_bytes;
 }
 
@@ -392,7 +393,7 @@ fn make_binary_array_32(bytes: &[u8; N_32]) -> [u32; BINARY_SZ_32] {
         {
             u8s_to_u32s_scalar::<N_32, BINARY_SZ_32>(&mut out, bytes);
         }
-        unsafe { core::mem::transmute(out) }
+        unsafe { transmute(out) }
     }
     #[cfg(target_endian = "big")]
     {
@@ -416,7 +417,7 @@ fn make_binary_array_64(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
         {
             u8s_to_u32s_scalar::<N_64, BINARY_SZ_64>(&mut out, bytes);
         }
-        unsafe { core::mem::transmute(out) }
+        unsafe { transmute(out) }
     }
     #[cfg(target_endian = "big")]
     {
@@ -676,6 +677,8 @@ mod tests {
         base58_decode_32, base58_decode_64,
         decode::{BASE58_ENCODED_32_SZ, BASE58_ENCODED_64_SZ},
     };
+    #[cfg(target_feature = "avx2")]
+    use core::array::from_fn;
 
     use super::*;
 
@@ -845,7 +848,7 @@ mod tests {
     #[cfg(target_feature = "avx2")]
     #[test]
     fn test_u8s_to_u32s_swapped_32() {
-        let bytes: [u8; 32] = core::array::from_fn(|i| i as u8);
+        let bytes: [u8; 32] = from_fn(|i| i as u8);
         let mut out = [0u8; 32];
         u8s_to_u32s_swapped_32(&bytes, &mut out);
         assert_eq!(
@@ -860,7 +863,7 @@ mod tests {
     #[cfg(target_feature = "avx2")]
     #[test]
     fn test_u8s_to_u32s_swapped_64() {
-        let bytes: [u8; 64] = core::array::from_fn(|i| i as u8);
+        let bytes: [u8; 64] = from_fn(|i| i as u8);
         let mut out = [0u8; N_64];
         u8s_to_u32s_swapped_64(&bytes, &mut out);
         assert_eq!(

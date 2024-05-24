@@ -1,3 +1,12 @@
+#[cfg(target_feature = "avx2")]
+use core::{
+    arch::x86_64::{
+        __m128i, __m256i, _mm256_loadu_si256, _mm256_set_epi8, _mm256_shuffle_epi8,
+        _mm_unpacklo_epi64,
+    },
+    mem::transmute,
+};
+
 use core::array::from_fn;
 
 use crate::{
@@ -276,14 +285,14 @@ pub fn base58_decode_64(encoded: &[u8], out: &mut [u8; N_64]) -> Result<(), Deco
 #[inline(always)]
 fn truncate_and_swap_u64s_32(out: &mut [u8; N_32], nums: &[u64; BINARY_SZ_32]) {
     let res = truncate_and_swap_u64s_registers::<BINARY_SZ_32, N_32, 2>(nums);
-    *out = unsafe { core::mem::transmute(res) }
+    *out = unsafe { transmute(res) }
 }
 
 #[cfg(target_feature = "avx2")]
 #[inline(always)]
 fn truncate_and_swap_u64s_64(out: &mut [u8; N_64], nums: &[u64; BINARY_SZ_64]) {
     let res = truncate_and_swap_u64s_registers::<BINARY_SZ_64, N_64, 4>(nums);
-    *out = unsafe { core::mem::transmute(res) }
+    *out = unsafe { transmute(res) }
 }
 
 #[cfg(target_feature = "avx2")]
@@ -294,31 +303,25 @@ fn truncate_and_swap_u64s_registers<
     const N_REGISTERS: usize,
 >(
     nums: &[u64; BINARY_SZ],
-) -> [core::arch::x86_64::__m128i; N_REGISTERS] {
+) -> [__m128i; N_REGISTERS] {
     let mask = unsafe {
-        core::arch::x86_64::_mm256_set_epi8(
+        _mm256_set_epi8(
             -128, -128, -128, -128, -128, -128, -128, -128, 8, 9, 10, 11, 0, 1, 2, 3, -128, -128,
             -128, -128, -128, -128, -128, -128, 8, 9, 10, 11, 0, 1, 2, 3,
         )
     };
-    let mut holder: [core::arch::x86_64::__m256i; N_REGISTERS] = from_fn(|i| unsafe {
-        core::arch::x86_64::_mm256_loadu_si256(
-            nums.get_unchecked((i * 4)..(4 + i * 4)).as_ptr() as *const core::arch::x86_64::__m256i
-        )
+    let mut holder: [__m256i; N_REGISTERS] = from_fn(|i| unsafe {
+        _mm256_loadu_si256(nums.get_unchecked((i * 4)..(4 + i * 4)).as_ptr() as *const __m256i)
     });
     for i in 0..N_REGISTERS {
         let register = unsafe { *holder.get_unchecked(i) };
-        unsafe {
-            *holder.get_unchecked_mut(i) = core::arch::x86_64::_mm256_shuffle_epi8(register, mask)
-        };
+        unsafe { *holder.get_unchecked_mut(i) = _mm256_shuffle_epi8(register, mask) };
     }
-    let splits: [[core::arch::x86_64::__m128i; 2]; N_REGISTERS] =
-        from_fn(|i| unsafe { core::mem::transmute(*holder.get_unchecked(i)) });
+    let splits: [[__m128i; 2]; N_REGISTERS] =
+        from_fn(|i| unsafe { transmute(*holder.get_unchecked(i)) });
     from_fn(|i| {
         let split = unsafe { *splits.get_unchecked(i) };
-        unsafe {
-            core::arch::x86_64::_mm_unpacklo_epi64(*split.get_unchecked(0), *split.get_unchecked(1))
-        }
+        unsafe { _mm_unpacklo_epi64(*split.get_unchecked(0), *split.get_unchecked(1)) }
     })
 }
 
@@ -459,7 +462,7 @@ mod tests {
         // 3 2 1 0 11 10 9 8 19 18 17 16 27 26 25 24 etc
 
         let bytes: [u8; 64] = from_fn(|i| i as u8);
-        let nums = unsafe { core::mem::transmute(bytes) };
+        let nums = unsafe { transmute(bytes) };
         let mut out = [0u8; 32];
         truncate_and_swap_u64s_32(&mut out, &nums);
         assert_eq!(
@@ -478,7 +481,7 @@ mod tests {
         // 3 2 1 0 11 10 9 8 19 18 17 16 27 26 25 24 etc
 
         let bytes: [u8; 128] = from_fn(|i| i as u8);
-        let nums = unsafe { core::mem::transmute(bytes) };
+        let nums = unsafe { transmute(bytes) };
         let mut out = [0u8; 64];
         truncate_and_swap_u64s_64(&mut out, &nums);
         assert_eq!(
