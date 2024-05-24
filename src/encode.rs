@@ -297,11 +297,76 @@ fn u8s_to_u32s_swapped_mask_32() -> __m256i {
     }
 }
 
+fn u8s_to_u32s_swapped_32_outer(out: &mut [u8; N_32], binary: &[u32; BINARY_SZ_32]) {
+    let binary_u8: &[u8; N_32] = unsafe { core::mem::transmute(binary) };
+    #[cfg(target_feature = "avx2")]
+    {
+        u8s_to_u32s_swapped_32(binary_u8, out);
+    }
+    #[cfg(not(target_feature = "avx2"))]
+    {
+        u8s_to_u32s_scalar::<N_32, BINARY_SZ_32>(out, binary_u8);
+    }
+}
+
+fn u8s_to_u32s_swapped_64_outer(out: &mut [u8; N_64], binary: &[u32; BINARY_SZ_64]) {
+    let binary_u8: &[u8; N_64] = unsafe { core::mem::transmute(binary) };
+    #[cfg(target_feature = "avx2")]
+    {
+        u8s_to_u32s_swapped_64(binary_u8, out);
+    }
+    #[cfg(not(target_feature = "avx2"))]
+    {
+        u8s_to_u32s_scalar::<N_64, BINARY_SZ_64>(out, binary_u8);
+    }
+}
+
+fn u8s_to_u32s_scalar<const N: usize, const BINARY_SZ: usize>(
+    out: &mut [u8; N],
+    binary_u8: &[u8; N],
+) {
+    for i in 0..BINARY_SZ {
+        let binary_u8_idx = i * 8;
+        let out_idx = i * 4;
+        #[cfg(target_endian = "little")]
+        unsafe {
+            *out.get_unchecked_mut(out_idx) = *binary_u8.get_unchecked(binary_u8_idx + 3);
+            *out.get_unchecked_mut(out_idx + 1) = *binary_u8.get_unchecked(binary_u8_idx + 2);
+            *out.get_unchecked_mut(out_idx + 2) = *binary_u8.get_unchecked(binary_u8_idx + 1);
+            *out.get_unchecked_mut(out_idx + 3) = *binary_u8.get_unchecked(binary_u8_idx);
+        }
+        #[cfg(target_endian = "big")]
+        unsafe {
+            *out.get_unchecked_mut(out_idx) = *binary_u8.get_unchecked(binary_u8_idx + 4);
+            *out.get_unchecked_mut(out_idx + 1) = *binary_u8.get_unchecked(binary_u8_idx + 5);
+            *out.get_unchecked_mut(out_idx + 2) = *binary_u8.get_unchecked(binary_u8_idx + 6);
+            *out.get_unchecked_mut(out_idx + 3) = *binary_u8.get_unchecked(binary_u8_idx + 7);
+        }
+    }
+}
+
 #[cfg(target_feature = "avx2")]
-fn u8s_to_u32s_swapped_32(bytes: [u8; N_32]) -> [u8; N_32] {
+fn u8s_to_u32s_swapped_32(bytes: &[u8; N_32], out: &mut [u8; N_32]) {
     let mask = u8s_to_u32s_swapped_mask_32();
-    let res_m256i = unsafe { _mm256_shuffle_epi8(core::mem::transmute(bytes), mask) };
-    unsafe { core::mem::transmute(res_m256i) }
+    let res_m256i =
+        unsafe { _mm256_shuffle_epi8(_mm256_loadu_si256(bytes.as_ptr() as *const __m256i), mask) };
+    let out_bytes: [u8; N_32] = unsafe { core::mem::transmute(res_m256i) };
+    *out = out_bytes;
+}
+
+#[cfg(target_feature = "avx2")]
+fn u8s_to_u32s_swapped_64(bytes: &[u8; N_64], out: &mut [u8; N_64]) {
+    let mask = u8s_to_u32s_swapped_mask_32();
+    let first_load = unsafe { _mm256_loadu_si256(bytes[..32].as_ptr() as *const __m256i) };
+    let first = unsafe { _mm256_shuffle_epi8(first_load, mask) };
+    let res_nested: [__m256i; 2] = [first, unsafe {
+        _mm256_shuffle_epi8(
+            _mm256_loadu_si256(bytes[32..64].as_ptr() as *const __m256i),
+            mask,
+        )
+    }];
+    let out_bytes: [u8; N_64] = unsafe { core::mem::transmute(res_nested) };
+    *out = out_bytes;
 }
 
 // fn u8s_to_u32s_swapped_64(bytes: [u8; N_64]) -> [u8; N_64] {
@@ -318,20 +383,6 @@ fn u8s_to_u32s_swapped_32(bytes: [u8; N_32]) -> [u8; N_32] {
 //         unsafe { core::arch::x86_64::_mm512_shuffle_epi8(core::mem::transmute(bytes), mask) };
 //     unsafe { core::mem::transmute(res_m256i) }
 // }
-
-#[cfg(target_feature = "avx2")]
-fn u8s_to_u32s_swapped_64(bytes: [u8; N_64]) -> [u8; N_64] {
-    let mask = u8s_to_u32s_swapped_mask_32();
-    let first_load = unsafe { _mm256_loadu_si256(bytes[..32].as_ptr() as *const __m256i) };
-    let first = unsafe { _mm256_shuffle_epi8(first_load, mask) };
-    let res_nested: [__m256i; 2] = [first, unsafe {
-        _mm256_shuffle_epi8(
-            _mm256_loadu_si256(bytes[32..64].as_ptr() as *const __m256i),
-            mask,
-        )
-    }];
-    unsafe { core::mem::transmute(res_nested) }
-}
 
 #[inline(always)]
 fn make_binary_array_32(bytes: &[u8; N_32]) -> [u32; BINARY_SZ_32] {
@@ -790,9 +841,10 @@ mod tests {
     #[test]
     fn test_u8s_to_u32s_swapped_32() {
         let bytes: [u8; 32] = core::array::from_fn(|i| i as u8);
-        let res = u8s_to_u32s_swapped_32(bytes);
+        let mut out = [0u8; 32];
+        u8s_to_u32s_swapped_32(&bytes, &mut out);
         assert_eq!(
-            res,
+            out,
             [
                 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12, 19, 18, 17, 16, 23, 22, 21,
                 20, 27, 26, 25, 24, 31, 30, 29, 28
@@ -804,9 +856,10 @@ mod tests {
     #[test]
     fn test_u8s_to_u32s_swapped_64() {
         let bytes: [u8; 64] = core::array::from_fn(|i| i as u8);
-        let res = u8s_to_u32s_swapped_64(bytes);
+        let mut out = [0u8; N_64];
+        u8s_to_u32s_swapped_64(&bytes, &mut out);
         assert_eq!(
-            res,
+            out,
             [
                 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12, 19, 18, 17, 16, 23, 22, 21,
                 20, 27, 26, 25, 24, 31, 30, 29, 28, 35, 34, 33, 32, 39, 38, 37, 36, 43, 42, 41, 40,
