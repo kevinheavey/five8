@@ -354,6 +354,8 @@ fn u8s_to_u32s_swapped_32(bytes: &[u8; N_32], out: &mut [u8; N_32]) {
     *out = out_bytes;
 }
 
+// replacing this func with the scalar version worsened the 
+// encode_64 benchmark by 150%.
 #[cfg(target_feature = "avx2")]
 #[inline(always)]
 fn u8s_to_u32s_swapped_64(bytes: &[u8; N_64], out: &mut [u8; N_64]) {
