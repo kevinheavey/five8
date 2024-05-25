@@ -295,6 +295,7 @@ fn truncate_and_swap_u64s_64(out: &mut [u8; N_64], nums: &[u64; BINARY_SZ_64]) {
     *out = unsafe { transmute(res) }
 }
 
+// unclear if this helps performance
 #[cfg(target_feature = "avx2")]
 #[inline(always)]
 fn truncate_and_swap_u64s_registers<
