@@ -403,6 +403,17 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_unprintable_32() {
+        let encoded = [
+            49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49,
+            49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 0, 1, 0, 0, 0, 0, 0, 127, 0,
+        ];
+        let mut out = [0u8; 32];
+        decode_32(&encoded, &mut out).unwrap();
+        println!("out: {out:?}");
+    }
+
+    #[test]
     fn test_decode_error_64() {
         check_bad_decode_64(DecodeError::WhatToCallThis, "1");
         check_bad_decode_64(
