@@ -328,6 +328,8 @@ fn truncate_and_swap_u64s_registers<
 
 #[cfg(test)]
 mod tests {
+    use core::arch::x86_64::{_mm256_shuffle_epi32, _mm256_unpacklo_epi64, _mm_shuffle_epi32};
+
     use super::*;
 
     fn check_bad_decode_32(expected_err: DecodeError, encoded: &str) {
@@ -505,5 +507,28 @@ mod tests {
                 122, 121, 120
             ]
         );
+    }
+
+    #[test]
+    fn test_pshufb_tmp() {
+        let bytes: [u32; 8] = from_fn(|i| i as u32);
+        let bytes2: [u32; 8] = from_fn(|i| i as u32 + 8);
+        let res = unsafe { _mm256_shuffle_epi32::<0b00_00_10_00>(core::mem::transmute(bytes)) };
+        let res2 = unsafe { _mm256_shuffle_epi32::<0b00_00_10_00>(core::mem::transmute(bytes2)) };
+        let out: [u32; 8] = unsafe {
+            core::mem::transmute(res)
+        };
+        let out2: [u32; 8] = unsafe {
+            core::mem::transmute(res2)
+        };
+        println!("out: {out:?}");
+        println!("out2: {out2:?}");
+        let unpacked = unsafe {
+            _mm256_unpacklo_epi64(res, res2)
+        };
+        let out3: [u32; 8] = unsafe {
+            core::mem::transmute(unpacked)
+        };
+        println!("out3: {out3:?}");
     }
 }

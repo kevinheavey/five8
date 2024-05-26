@@ -1,0 +1,19 @@
+[package]
+name = "five8-bench"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dev-dependencies]
+bs58 = "0.4.0"
+criterion = "0.4.0"
+fd_bs58 = { git = "https://github.com/Lou-Kamades/fd_bs58.git", rev = "4c66dec" }
+five8 = { path = ".." }
+
+[[bench]]
+name = "encode"
+harness = false
+
+[[bench]]
+name = "decode"
+harness = false

@@ -12,11 +12,6 @@ libfuzzer-sys = "0.4"
 bs58 = "0.4.0"
 five8.path = ".."
 
-
-# Prevent this from interfering with workspaces
-[workspace]
-members = ["."]
-
 [profile.release]
 debug = 1
 
