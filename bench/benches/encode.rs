@@ -10,9 +10,6 @@ fn bench_encode_32(c: &mut Criterion) {
     let mut buf = [0u8; 45];
     let mut len = 0u8;
 
-    group.bench_function("encode_bs58", |b| {
-        b.iter(|| bs58::encode(black_box(&bytes)).into_string())
-    });
     group.bench_function("encode_bs58_noalloc", |b| {
         let mut output = String::with_capacity(string.len());
         b.iter(|| bs58::encode(black_box(&bytes)).into(&mut output));
@@ -45,9 +42,6 @@ fn bench_encode_64(c: &mut Criterion) {
     let mut buf = [0u8; 89];
     let mut len = 0u8;
 
-    group.bench_function("encode_bs58", |b| {
-        b.iter(|| bs58::encode(black_box(&bytes)).into_string())
-    });
     group.bench_function("encode_bs58_noalloc", |b| {
         let mut output = String::with_capacity(string.len());
         b.iter(|| bs58::encode(black_box(&bytes)).into(&mut output));
