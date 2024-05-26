@@ -5,6 +5,7 @@ edition = "2021"
 resolver = "2"
 
 [features]
+dev-utils = []
 std = []
 
 [dev-dependencies]

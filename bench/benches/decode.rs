@@ -46,5 +46,33 @@ fn bench_decode_64(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_decode_32, bench_decode_64);
+fn bench_truncate_swap_64(c: &mut Criterion) {
+    let mut group = c.benchmark_group("truncate_swap_64");
+    let bytes: [u8; 128] = [
+        215, 73, 67, 191, 43, 217, 50, 40, 125, 237, 129, 129, 179, 233, 7, 105, 54, 9, 136, 26,
+        210, 248, 126, 172, 119, 202, 94, 23, 28, 184, 110, 212, 114, 22, 220, 173, 177, 235, 44,
+        20, 44, 237, 101, 1, 111, 149, 189, 69, 1, 194, 117, 235, 207, 56, 84, 20, 145, 51, 1, 1,
+        141, 158, 146, 118, 180, 194, 229, 228, 221, 151, 170, 72, 123, 12, 166, 158, 85, 2, 32,
+        54, 133, 131, 207, 56, 189, 221, 212, 186, 194, 29, 32, 56, 70, 105, 105, 51, 244, 135,
+        111, 17, 25, 26, 186, 222, 228, 187, 67, 78, 3, 235, 166, 27, 13, 30, 166, 206, 203, 66,
+        81, 152, 160, 142, 53, 60, 75, 224, 196, 208,
+    ];
+    let nums: [u64; 16] = unsafe { core::mem::transmute(bytes) };
+    let mut out = [0u8; 64];
+
+    group.bench_function("truncate_and_swap_u64s_64", |b| {
+        b.iter(|| five8::truncate_and_swap_u64s_64_pub(black_box(&mut out), black_box(&nums)))
+    });
+    group.bench_function("truncate_and_swap_u64s_scalar", |b| {
+        b.iter(|| five8::truncate_and_swap_u64s_scalar_pub(black_box(&mut out), black_box(&nums)));
+    });
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_decode_32,
+    bench_decode_64,
+    bench_truncate_swap_64
+);
 criterion_main!(benches);

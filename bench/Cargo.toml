@@ -8,7 +8,7 @@ resolver = "2"
 bs58 = "0.4.0"
 criterion = "0.4.0"
 fd_bs58 = { git = "https://github.com/Lou-Kamades/fd_bs58.git", rev = "4c66dec" }
-five8 = { path = ".." }
+five8 = { path = "..", features = ["dev-utils"] }
 
 [[bench]]
 name = "encode"
