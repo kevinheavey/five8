@@ -347,7 +347,7 @@ fn truncate_and_swap_u64s_registers<
 
 #[cfg(test)]
 mod tests {
-    use core::arch::x86_64::{_mm256_shuffle_epi32, _mm256_unpacklo_epi64, _mm_shuffle_epi32};
+    use core::arch::x86_64::{_mm256_shuffle_epi32, _mm256_unpacklo_epi64};
 
     use super::*;
 
