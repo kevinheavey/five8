@@ -354,7 +354,7 @@ fn u8s_to_u32s_swapped_32(bytes: &[u8; N_32], out: &mut [u8; N_32]) {
     *out = out_bytes;
 }
 
-// replacing this func with the scalar version worsened the 
+// replacing this func with the scalar version worsened the
 // encode_64 benchmark by 150%.
 #[cfg(target_feature = "avx2")]
 #[inline(always)]
@@ -676,8 +676,8 @@ pub fn encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut [u8]) {
 #[cfg(test)]
 mod tests {
     use crate::{
-        decode_32, decode_64,
         decode::{BASE58_ENCODED_32_SZ, BASE58_ENCODED_64_SZ},
+        decode_32, decode_64,
     };
     #[cfg(target_feature = "avx2")]
     use core::array::from_fn;
