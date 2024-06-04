@@ -6,9 +6,6 @@ fn bench_decode_32(c: &mut Criterion) {
     let bytes = b"2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG\0";
     let mut out = [0u8; 32];
 
-    group.bench_function("decode_bs58", |b| {
-        b.iter(|| bs58::decode(black_box(string)).into_vec())
-    });
     group.bench_function("decode_bs58_noalloc", |b| {
         let mut output = [0; 32];
         b.iter(|| bs58::decode(black_box(string)).into(&mut output).unwrap());
@@ -30,9 +27,6 @@ fn bench_decode_64(c: &mut Criterion) {
         b"11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df\0";
     let mut out = [0u8; 64];
 
-    group.bench_function("decode_bs58", |b| {
-        b.iter(|| bs58::decode(black_box(string)).into_vec())
-    });
     group.bench_function("decode_bs58_noalloc", |b| {
         let mut output = [0; 64];
         b.iter(|| bs58::decode(black_box(string)).into(&mut output).unwrap());
