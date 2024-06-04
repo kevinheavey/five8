@@ -134,6 +134,12 @@ fn fd_ulong_store_if(p: Option<&mut u8>, v: u8) {
 #[repr(C)]
 struct Intermediate<const INTERMEDIATE_SZ_W_PADDING: usize>([u64; INTERMEDIATE_SZ_W_PADDING]);
 
+#[cfg(feature = "dev-utils")]
+#[repr(transparent)]
+pub struct IntermediatePub<const INTERMEDIATE_SZ_W_PADDING: usize>(
+    Intermediate<INTERMEDIATE_SZ_W_PADDING>,
+);
+
 #[cfg(target_feature = "avx2")]
 #[inline(always)]
 fn in_leading_0s_32_avx(bytes: *const u8) -> u64 {
@@ -160,6 +166,11 @@ fn in_leading_0s_scalar<const BYTE_CNT: usize>(bytes: *const u8) -> u64 {
         in_leading_0s += 1;
     }
     in_leading_0s as u64
+}
+
+#[cfg(feature = "dev-utils")]
+pub fn in_leading_0s_scalar_pub<const BYTE_CNT: usize>(bytes: *const u8) -> u64 {
+    in_leading_0s_scalar::<BYTE_CNT>(bytes)
 }
 
 #[inline(always)]
@@ -251,6 +262,23 @@ fn intermediate_to_base58_scalar<
         }
     }
     skip
+}
+
+#[cfg(feature = "dev-utils")]
+pub fn intermediate_to_base58_scalar_pub<
+    const INTERMEDIATE_SZ_W_PADDING: usize,
+    const RAW58_SZ: usize,
+    const INTERMEDIATE_SZ: usize,
+>(
+    intermediate: &IntermediatePub<INTERMEDIATE_SZ_W_PADDING>,
+    in_leading_0s: u64,
+    out: &mut [u8],
+) -> usize {
+    intermediate_to_base58_scalar::<INTERMEDIATE_SZ_W_PADDING, RAW58_SZ, INTERMEDIATE_SZ>(
+        &intermediate.0,
+        in_leading_0s,
+        out,
+    )
 }
 
 #[inline(always)]
@@ -427,6 +455,11 @@ fn make_binary_array_64(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
     }
 }
 
+#[cfg(feature = "dev-utils")]
+pub fn make_binary_array_64_pub(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
+    make_binary_array_64(bytes)
+}
+
 #[inline]
 pub fn encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut [u8]) {
     let bytes_ptr = bytes as *const u8;
@@ -441,46 +474,7 @@ pub fn encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut [u8]) {
         }
     };
     let binary = make_binary_array_64(bytes);
-    /* Convert to the intermediate format:
-      X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i))
-    Initially, we don't require intermediate[i] < 58^5, but we do want
-    to make sure the sums don't overflow. */
-    let mut intermediate = init_intermediate_array::<INTERMEDIATE_SZ_W_PADDING_64>();
-
-    /* If we do it the same way as the 32B conversion, intermediate[16]
-    can overflow when the input is sufficiently large.  We'll do a
-    mini-reduction after the first 8 steps.  After the first 8 terms,
-    the largest intermediate[16] can be is 2^63.87.  Then, after
-    reduction it'll be at most 58^5, and after adding the last terms,
-    it won't exceed 2^63.1.  We do need to be cautious that the
-    mini-reduction doesn't cause overflow in intermediate[15] though.
-    Pre-mini-reduction, it's at most 2^63.05.  The mini-reduction adds
-    at most 2^64/58^5, which is negligible.  With the final terms, it
-    won't exceed 2^63.69, which is fine. Other terms are less than
-    2^63.76, so no problems there. */
-    for i in 0..8 {
-        for j in 0..INTERMEDIATE_SZ_64 - 1 {
-            let multiplier = unsafe { *ENC_TABLE_64.get_unchecked(i).get_unchecked(j) } as u64;
-            add_binary_to_intermediate(&mut intermediate, j, binary, i, multiplier);
-        }
-    }
-    /* Mini-reduction */
-    unsafe {
-        *intermediate.0.get_unchecked_mut(15) += intermediate.0.get_unchecked(16) / R1DIV;
-    }
-    unsafe {
-        *intermediate.0.get_unchecked_mut(16) %= R1DIV;
-    }
-    /* Finish iterations */
-    for i in 8..BINARY_SZ_64 {
-        for j in 0..INTERMEDIATE_SZ_64 - 1 {
-            let multiplier = unsafe { *ENC_TABLE_64.get_unchecked(i).get_unchecked(j) as u64 };
-            add_binary_to_intermediate(&mut intermediate, j, binary, i, multiplier);
-        }
-    }
-    adjust_intermediate_array::<INTERMEDIATE_SZ_W_PADDING_64, INTERMEDIATE_SZ_64>(
-        &mut intermediate,
-    );
+    let intermediate = make_intermediate_array_64(binary);
     let skip = {
         #[cfg(not(target_feature = "avx2"))]
         {
@@ -556,6 +550,60 @@ pub fn encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut [u8]) {
         }
     };
     fd_ulong_store_if(opt_len, RAW58_SZ_64 as u8 - skip as u8);
+}
+
+#[inline(always)]
+fn make_intermediate_array_64(
+    binary: [u32; BINARY_SZ_64],
+) -> Intermediate<INTERMEDIATE_SZ_W_PADDING_64> {
+    /* Convert to the intermediate format:
+      X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i))
+    Initially, we don't require intermediate[i] < 58^5, but we do want
+    to make sure the sums don't overflow. */
+    let mut intermediate = init_intermediate_array::<INTERMEDIATE_SZ_W_PADDING_64>();
+
+    /* If we do it the same way as the 32B conversion, intermediate[16]
+    can overflow when the input is sufficiently large.  We'll do a
+    mini-reduction after the first 8 steps.  After the first 8 terms,
+    the largest intermediate[16] can be is 2^63.87.  Then, after
+    reduction it'll be at most 58^5, and after adding the last terms,
+    it won't exceed 2^63.1.  We do need to be cautious that the
+    mini-reduction doesn't cause overflow in intermediate[15] though.
+    Pre-mini-reduction, it's at most 2^63.05.  The mini-reduction adds
+    at most 2^64/58^5, which is negligible.  With the final terms, it
+    won't exceed 2^63.69, which is fine. Other terms are less than
+    2^63.76, so no problems there. */
+    for i in 0..8 {
+        for j in 0..INTERMEDIATE_SZ_64 - 1 {
+            let multiplier = unsafe { *ENC_TABLE_64.get_unchecked(i).get_unchecked(j) } as u64;
+            add_binary_to_intermediate(&mut intermediate, j, binary, i, multiplier);
+        }
+    }
+    /* Mini-reduction */
+    unsafe {
+        *intermediate.0.get_unchecked_mut(15) += intermediate.0.get_unchecked(16) / R1DIV;
+    }
+    unsafe {
+        *intermediate.0.get_unchecked_mut(16) %= R1DIV;
+    }
+    /* Finish iterations */
+    for i in 8..BINARY_SZ_64 {
+        for j in 0..INTERMEDIATE_SZ_64 - 1 {
+            let multiplier = unsafe { *ENC_TABLE_64.get_unchecked(i).get_unchecked(j) as u64 };
+            add_binary_to_intermediate(&mut intermediate, j, binary, i, multiplier);
+        }
+    }
+    adjust_intermediate_array::<INTERMEDIATE_SZ_W_PADDING_64, INTERMEDIATE_SZ_64>(
+        &mut intermediate,
+    );
+    intermediate
+}
+
+#[cfg(feature = "dev-utils")]
+pub fn make_intermediate_array_64_pub(
+    binary: [u32; BINARY_SZ_64],
+) -> IntermediatePub<INTERMEDIATE_SZ_W_PADDING_64> {
+    IntermediatePub(make_intermediate_array_64(binary))
 }
 
 #[inline]

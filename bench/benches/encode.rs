@@ -61,5 +61,44 @@ fn bench_encode_64(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_encode_32, bench_encode_64);
+fn bench_encode_64_scalar_breakdown(c: &mut Criterion) {
+    let mut group = c.benchmark_group("encode_64_scalar_breakdown");
+    let bytes_64: [u8; 64] = [
+        0, 0, 10, 85, 198, 191, 71, 18, 5, 54, 6, 255, 181, 32, 227, 150, 208, 3, 157, 135, 222,
+        67, 50, 23, 237, 51, 240, 123, 34, 148, 111, 84, 98, 162, 236, 133, 31, 93, 185, 142, 108,
+        41, 191, 1, 138, 6, 192, 0, 46, 93, 25, 65, 243, 223, 225, 225, 85, 55, 82, 251, 109, 132,
+        165, 2,
+    ];
+    let bytes_ptr_64 = &bytes_64 as *const u8;
+    let binary = five8::make_binary_array_64_pub(&bytes_64);
+    let in_leading_0s = five8::in_leading_0s_scalar_pub::<64>(bytes_ptr_64);
+    let intermediate = five8::make_intermediate_array_64_pub(binary);
+    let mut out = [0u8; 88];
+    group.bench_function("in_leading_0s_scalar_64", |b| {
+        b.iter(|| five8::in_leading_0s_scalar_pub::<64>(black_box(bytes_ptr_64)));
+    });
+    group.bench_function("make_binary_array_64", |b| {
+        b.iter(|| five8::make_binary_array_64_pub(black_box(&bytes_64)));
+    });
+    group.bench_function("make_intermediate_array_64", |b| {
+        b.iter(|| five8::make_intermediate_array_64_pub(black_box(binary)));
+    });
+    group.bench_function("intermediate_to_base58_scalar_64", |b| {
+        b.iter(|| {
+            five8::intermediate_to_base58_scalar_pub::<18, 90, 18>(
+                &intermediate,
+                in_leading_0s,
+                &mut out,
+            )
+        });
+    });
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_encode_32,
+    bench_encode_64,
+    bench_encode_64_scalar_breakdown
+);
 criterion_main!(benches);
