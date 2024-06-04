@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-fn bench_encode_32(c: &mut Criterion) {
-    let mut group = c.benchmark_group("encode_32");
+fn showcase_encode_32(c: &mut Criterion) {
+    let mut group = c.benchmark_group("showcase_encode_32");
     let bytes = &[
         24, 243, 6, 223, 230, 153, 210, 8, 92, 137, 123, 67, 164, 197, 79, 196, 125, 43, 183, 85,
         103, 91, 232, 167, 73, 131, 104, 131, 0, 101, 214, 231,
@@ -29,8 +29,8 @@ fn bench_encode_32(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_encode_64(c: &mut Criterion) {
-    let mut group = c.benchmark_group("encode_64");
+fn showcase_encode_64(c: &mut Criterion) {
+    let mut group = c.benchmark_group("showcase_encode_64");
     let bytes = &[
         0, 0, 10, 85, 198, 191, 71, 18, 5, 54, 6, 255, 181, 32, 227, 150, 208, 3, 157, 135, 222,
         67, 50, 23, 237, 51, 240, 123, 34, 148, 111, 84, 98, 162, 236, 133, 31, 93, 185, 142, 108,
@@ -85,11 +85,7 @@ fn bench_encode_64_scalar_breakdown(c: &mut Criterion) {
     });
     group.bench_function("intermediate_to_base58_scalar_64", |b| {
         b.iter(|| {
-            five8::intermediate_to_base58_scalar_pub::<18, 90, 18>(
-                &intermediate,
-                in_leading_0s,
-                &mut out,
-            )
+            five8::intermediate_to_base58_scalar_64_pub(&intermediate, in_leading_0s, &mut out)
         });
     });
     group.finish();
@@ -97,8 +93,8 @@ fn bench_encode_64_scalar_breakdown(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    bench_encode_32,
-    bench_encode_64,
+    showcase_encode_32,
+    showcase_encode_64,
     bench_encode_64_scalar_breakdown
 );
 criterion_main!(benches);

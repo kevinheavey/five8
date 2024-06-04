@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-fn bench_decode_32(c: &mut Criterion) {
-    let mut group = c.benchmark_group("decode_32");
+fn showcase_decode_32(c: &mut Criterion) {
+    let mut group = c.benchmark_group("showcase_decode_32");
     let string = "2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG";
     let bytes = b"2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG";
     let mut out = [0u8; 32];
@@ -19,8 +19,8 @@ fn bench_decode_32(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_decode_64(c: &mut Criterion) {
-    let mut group = c.benchmark_group("decode_64");
+fn showcase_decode_64(c: &mut Criterion) {
+    let mut group = c.benchmark_group("showcase_decode_64");
     let string =
         "11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df";
     let bytes =
@@ -65,8 +65,8 @@ fn bench_truncate_swap_64(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    bench_decode_32,
-    bench_decode_64,
+    showcase_decode_32,
+    showcase_decode_64,
     bench_truncate_swap_64
 );
 criterion_main!(benches);

@@ -17,7 +17,7 @@ use {
     },
 };
 
-#[cfg(not(target_feature = "avx2"))]
+#[cfg(any(not(target_feature = "avx2"), feature = "dev-utils"))]
 const BASE58_CHARS: [u8; 58] = [
     b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'A', b'B', b'C', b'D', b'E', b'F', b'G',
     b'H', b'J', b'K', b'L', b'M', b'N', b'P', b'Q', b'R', b'S', b'T', b'U', b'V', b'W', b'X', b'Y',
@@ -155,7 +155,7 @@ fn in_leading_0s_64_avx(bytes: *const u8) -> u64 {
     count_leading_zeros_64(bytes_0, bytes_1)
 }
 
-#[cfg(not(target_feature = "avx2"))]
+#[cfg(any(not(target_feature = "avx2"), feature = "dev-utils"))]
 #[inline(always)]
 fn in_leading_0s_scalar<const BYTE_CNT: usize>(bytes: *const u8) -> u64 {
     let mut in_leading_0s = 0;
@@ -186,7 +186,7 @@ fn add_binary_to_intermediate<const INTERMEDIATE_SZ_W_PADDING: usize, const BINA
     }
 }
 
-#[cfg(not(target_feature = "avx2"))]
+#[cfg(any(not(target_feature = "avx2"), feature = "dev-utils"))]
 #[inline(always)]
 fn intermediate_to_base58_scalar<
     const INTERMEDIATE_SZ_W_PADDING: usize,
@@ -265,16 +265,12 @@ fn intermediate_to_base58_scalar<
 }
 
 #[cfg(feature = "dev-utils")]
-pub fn intermediate_to_base58_scalar_pub<
-    const INTERMEDIATE_SZ_W_PADDING: usize,
-    const RAW58_SZ: usize,
-    const INTERMEDIATE_SZ: usize,
->(
-    intermediate: &IntermediatePub<INTERMEDIATE_SZ_W_PADDING>,
+pub fn intermediate_to_base58_scalar_64_pub(
+    intermediate: &IntermediatePub<INTERMEDIATE_SZ_W_PADDING_64>,
     in_leading_0s: u64,
     out: &mut [u8],
 ) -> usize {
-    intermediate_to_base58_scalar::<INTERMEDIATE_SZ_W_PADDING, RAW58_SZ, INTERMEDIATE_SZ>(
+    intermediate_to_base58_scalar::<INTERMEDIATE_SZ_W_PADDING_64, RAW58_SZ_64, INTERMEDIATE_SZ_64>(
         &intermediate.0,
         in_leading_0s,
         out,
