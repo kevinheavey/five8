@@ -28,17 +28,18 @@ const BASE58_INVERSE: [u8; 75] = [
 #[cfg(feature = "dev-utils")]
 pub fn truncate_and_swap_u64s_scalar_pub<const BINARY_SZ: usize, const N: usize>(
     binary: &[u64; BINARY_SZ],
-) -> [u8; N] {
-    truncate_and_swap_u64s_scalar(binary)
+    out: &mut [u8; N],
+) {
+    truncate_and_swap_u64s_scalar(binary, out);
 }
 
 #[cfg(any(not(target_feature = "avx2"), feature = "dev-utils"))]
 #[inline(always)]
 fn truncate_and_swap_u64s_scalar<const BINARY_SZ: usize, const N: usize>(
     binary: &[u64; BINARY_SZ],
-) -> [u8; N] {
+    out: &mut [u8; N],
+) {
     let binary_u8 = binary.as_ptr() as *const u8;
-    let mut out = [0u8; N];
     for i in 0..BINARY_SZ {
         // take the first four bytes of each 8-byte block and reverse them:
         // 3 2 1 0 11 10 9 8 19 18 17 16 27 26 25 24 etc
@@ -61,7 +62,6 @@ fn truncate_and_swap_u64s_scalar<const BINARY_SZ: usize, const N: usize>(
             *out.get_unchecked_mut(out_idx + 3) = *binary_u8.add(binary_u8_idx + 7);
         }
     }
-    out
 }
 
 #[inline(always)]
@@ -262,10 +262,11 @@ pub fn decode_32(encoded: &[u8]) -> Result<[u8; N_32], DecodeError> {
         BINARY_SZ_32,
     >(encoded, &DEC_TABLE_32)?;
     /* Convert each term to big endian for the final output */
+    let mut out = [0u8; N_32];
     #[cfg(target_feature = "avx2")]
-    let out = truncate_and_swap_u64s_32(&binary);
+    truncate_and_swap_u64s_32(&binary, &mut out);
     #[cfg(not(target_feature = "avx2"))]
-    let out = truncate_and_swap_u64s_scalar(&binary);
+    truncate_and_swap_u64s_scalar(&binary, &mut out);
     base58_decode_after_be_convert(&out, encoded)?;
     Ok(out)
 }
@@ -279,31 +280,32 @@ pub fn decode_64(encoded: &[u8]) -> Result<[u8; N_64], DecodeError> {
         BINARY_SZ_64,
     >(encoded, &DEC_TABLE_64)?;
     /* Convert each term to big endian for the final output */
+    let mut out = [0u8; N_64];
     #[cfg(target_feature = "avx2")]
-    let out = truncate_and_swap_u64s_64(&binary);
+    truncate_and_swap_u64s_64(&binary, &mut out);
     #[cfg(not(target_feature = "avx2"))]
-    let out = truncate_and_swap_u64s_scalar(&binary);
+    truncate_and_swap_u64s_scalar(&binary, &mut out);
     base58_decode_after_be_convert(&out, encoded)?;
     Ok(out)
 }
 
 #[cfg(target_feature = "avx2")]
 #[inline(always)]
-fn truncate_and_swap_u64s_32(nums: &[u64; BINARY_SZ_32]) -> [u8; 32] {
+fn truncate_and_swap_u64s_32(nums: &[u64; BINARY_SZ_32], out: &mut [u8; N_32]) {
     let res = truncate_and_swap_u64s_registers::<BINARY_SZ_32, N_32, 2>(nums);
-    unsafe { transmute(res) }
+    *out = unsafe { transmute(res) };
 }
 
 #[cfg(feature = "dev-utils")]
-pub fn truncate_and_swap_u64s_64_pub(nums: &[u64; BINARY_SZ_64]) -> [u8; N_64] {
-    truncate_and_swap_u64s_64(nums)
+pub fn truncate_and_swap_u64s_64_pub(nums: &[u64; BINARY_SZ_64], out: &mut [u8; N_64]) {
+    truncate_and_swap_u64s_64(nums, out);
 }
 
 #[cfg(any(target_feature = "avx2", feature = "dev-utils"))]
 #[inline(always)]
-fn truncate_and_swap_u64s_64(nums: &[u64; BINARY_SZ_64]) -> [u8; N_64] {
+fn truncate_and_swap_u64s_64(nums: &[u64; BINARY_SZ_64], out: &mut [u8; N_64]) {
     let res = truncate_and_swap_u64s_registers::<BINARY_SZ_64, N_64, 4>(nums);
-    unsafe { core::mem::transmute(res) }
+    *out = unsafe { core::mem::transmute(res) };
 }
 
 // unclear if this helps performance
