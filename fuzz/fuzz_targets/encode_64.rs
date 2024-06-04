@@ -3,11 +3,7 @@
 use bs58::encode;
 use libfuzzer_sys::fuzz_target;
 
-fn encode_64_to_string(
-    bytes: &[u8; 64],
-    len: &mut u8,
-    buf: &mut [u8; 89],
-) -> String {
+fn encode_64_to_string(bytes: &[u8; 64], len: &mut u8, buf: &mut [u8; 89]) -> String {
     five8::encode_64(bytes, Some(len), buf);
     buf[..*len as usize].iter().map(|c| *c as char).collect()
 }
@@ -22,7 +18,10 @@ fuzz_target!(|data: [u8; 64]| {
 
     // check encoding matches
     if correct != encoded {
-        panic!("encode_64 fuzz encoding failed: {:?}, {:?}", correct, encoded);
+        panic!(
+            "encode_64 fuzz encoding failed: {:?}, {:?}",
+            correct, encoded
+        );
     }
 
     // check round trip

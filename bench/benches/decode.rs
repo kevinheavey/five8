@@ -3,7 +3,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 fn bench_decode_32(c: &mut Criterion) {
     let mut group = c.benchmark_group("decode_32");
     let string = "2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG";
-    let bytes = b"2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG\0";
+    let bytes = b"2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG";
     let mut out = [0u8; 32];
 
     group.bench_function("decode_bs58_noalloc", |b| {
@@ -24,7 +24,7 @@ fn bench_decode_64(c: &mut Criterion) {
     let string =
         "11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df";
     let bytes =
-        b"11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df\0";
+        b"11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df";
     let mut out = [0u8; 64];
 
     group.bench_function("decode_bs58_noalloc", |b| {

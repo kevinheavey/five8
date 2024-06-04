@@ -5,12 +5,10 @@ use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     let data_len = data.len();
-    if data_len >= 32 && data_len <= 44 && !data.contains(&b'\0') {
+    if data_len >= 32 && data_len <= 44 {
         if let Ok(s) = std::str::from_utf8(data) {
             let mut out = [0u8; 32];
-            let mut fd_data = data.to_vec();
-            fd_data.push(b'\0');
-            let fd = five8::decode_32(&fd_data, &mut out);
+            let fd = five8::decode_32(&data, &mut out);
             let decoded = decode(s).into_vec();
 
             if fd.is_err() && !decoded.is_err() {
