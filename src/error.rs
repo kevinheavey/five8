@@ -4,9 +4,7 @@ pub enum DecodeError {
     TooLong,
     TooShort,
     LargestTermTooHigh,
-    WhatToCallThis,
     WhatToCallThisToo,
-    
 }
 
 #[cfg(feature = "std")]
@@ -24,7 +22,6 @@ impl core::fmt::Display for DecodeError {
             DecodeError::LargestTermTooHigh {} => {
                 formatter.write_str("Largest term greater than 2^32")
             }
-            DecodeError::WhatToCallThis {} => formatter.write_str("What to call this"),
             DecodeError::WhatToCallThisToo {} => formatter.write_str("What to call this too"),
         }
     }

@@ -555,9 +555,6 @@ pub fn encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut [u8]) {
             skip
         }
     };
-    unsafe {
-        *out.get_unchecked_mut(RAW58_SZ_64 - skip as usize) = b'\0';
-    }
     fd_ulong_store_if(opt_len, RAW58_SZ_64 as u8 - skip as u8);
 }
 
@@ -667,16 +664,13 @@ pub fn encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut [u8]) {
             skip
         }
     };
-    unsafe {
-        *out.get_unchecked_mut(RAW58_SZ_32 - skip as usize) = b'\0';
-    }
     fd_ulong_store_if(opt_len, RAW58_SZ_32 as u8 - skip as u8);
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        decode::{BASE58_ENCODED_32_SZ, BASE58_ENCODED_64_SZ},
+        decode::{BASE58_ENCODED_32_LEN, BASE58_ENCODED_64_LEN},
         decode_32, decode_64,
     };
     #[cfg(target_feature = "avx2")]
@@ -687,7 +681,7 @@ mod tests {
     fn encode_32_to_string(
         bytes: &[u8; 32],
         len: &mut u8,
-        buf: &mut [u8; BASE58_ENCODED_32_SZ],
+        buf: &mut [u8; BASE58_ENCODED_32_LEN],
     ) -> String {
         encode_32(bytes, Some(len), buf);
         buf[..*len as usize].iter().map(|c| *c as char).collect()
@@ -696,7 +690,7 @@ mod tests {
     fn check_encode_decode_32(
         bytes: &[u8; 32],
         len: &mut u8,
-        buf: &mut [u8; BASE58_ENCODED_32_SZ],
+        buf: &mut [u8; BASE58_ENCODED_32_LEN],
         expected_len: u8,
         encoded: &str,
     ) {
@@ -710,7 +704,7 @@ mod tests {
     fn check_encode_decode_64(
         bytes: &[u8; 64],
         len: &mut u8,
-        buf: &mut [u8; BASE58_ENCODED_64_SZ],
+        buf: &mut [u8; BASE58_ENCODED_64_LEN],
         expected_len: u8,
         encoded: &str,
     ) {
@@ -724,7 +718,7 @@ mod tests {
     fn encode_64_to_string(
         bytes: &[u8; 64],
         len: &mut u8,
-        buf: &mut [u8; BASE58_ENCODED_64_SZ],
+        buf: &mut [u8; BASE58_ENCODED_64_LEN],
     ) -> String {
         encode_64(&bytes, Some(len), buf);
         buf[..*len as usize].iter().map(|c| *c as char).collect()
@@ -732,7 +726,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_32() {
-        let mut buf = [0u8; BASE58_ENCODED_32_SZ];
+        let mut buf = [0u8; BASE58_ENCODED_32_LEN];
         let mut len = 0u8;
         let mut bytes = [0u8; 32];
         check_encode_decode_32(
@@ -799,7 +793,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_64() {
-        let mut buf = [0u8; BASE58_ENCODED_64_SZ];
+        let mut buf = [0u8; BASE58_ENCODED_64_LEN];
         let mut len = 0u8;
         let mut bytes = [0u8; 64];
         check_encode_decode_64(

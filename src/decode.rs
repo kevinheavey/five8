@@ -86,7 +86,11 @@ fn base58_decode_after_be_convert<const N: usize>(
         }
         leading_zero_cnt += 1;
     }
-    if unlikely(encoded[leading_zero_cnt as usize] == b'1') {
+    if unlikely(
+        encoded
+            .get(leading_zero_cnt as usize)
+            .map_or(false, |x| *x == b'1'),
+    ) {
         return Err(DecodeError::WhatToCallThisToo);
     }
     Ok(())
@@ -246,10 +250,8 @@ const DEC_TABLE_64: [[u32; BINARY_SZ_64]; INTERMEDIATE_SZ_64] = [
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
 ];
 
-const BASE58_ENCODED_32_LEN: usize = 44; /* Computed as ceil(log_58(256^32 - 1)) */
-const BASE58_ENCODED_64_LEN: usize = 88; /* Computed as ceil(log_58(256^64 - 1)) */
-pub(crate) const BASE58_ENCODED_32_SZ: usize = BASE58_ENCODED_32_LEN + 1; /* Including the nul terminator */
-pub(crate) const BASE58_ENCODED_64_SZ: usize = BASE58_ENCODED_64_LEN + 1; /* Including the nul terminator */
+pub(crate) const BASE58_ENCODED_32_LEN: usize = 44; /* Computed as ceil(log_58(256^32 - 1)) */
+pub(crate) const BASE58_ENCODED_64_LEN: usize = 88; /* Computed as ceil(log_58(256^64 - 1)) */
 
 #[inline]
 pub fn decode_32(encoded: &[u8], out: &mut [u8; N_32]) -> Result<(), DecodeError> {
@@ -346,7 +348,6 @@ mod tests {
     use super::*;
 
     fn check_bad_decode_32(expected_err: DecodeError, encoded: &str) {
-        println!("encoded: {encoded}");
         let mut decoded = [0u8; 32];
         let err = decode_32(encoded.as_bytes(), &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
@@ -361,10 +362,7 @@ mod tests {
     #[test]
     fn test_decode_error_32() {
         check_bad_decode_32(DecodeError::TooShort, "1");
-        check_bad_decode_32(
-            DecodeError::TooShort,
-            "1111111111111111111111111111111",
-        );
+        check_bad_decode_32(DecodeError::TooShort, "1111111111111111111111111111111");
         check_bad_decode_32(
             DecodeError::TooShort,
             "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJz",
