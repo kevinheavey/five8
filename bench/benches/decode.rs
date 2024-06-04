@@ -22,7 +22,8 @@ fn showcase_decode_64(c: &mut Criterion) {
     let mut group = c.benchmark_group("showcase_decode_64");
     let string =
         "11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df";
-    let mut out = [0u8; 64];
+    let bytes =
+        b"11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df";
 
     group.bench_function("decode_bs58_noalloc", |b| {
         let mut output = [0; 64];
@@ -32,7 +33,7 @@ fn showcase_decode_64(c: &mut Criterion) {
         b.iter(|| fd_bs58::decode_64(black_box(string)))
     });
     group.bench_function("decode_five8", |b| {
-        b.iter(|| five8::decode_64(black_box(&mut out)))
+        b.iter(|| five8::decode_64(black_box(bytes)))
     });
     group.finish();
 }
