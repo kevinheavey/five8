@@ -2,7 +2,6 @@ use crate::consts::{
     BINARY_SZ_32, BINARY_SZ_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64, RAW58_SZ_32,
     RAW58_SZ_64,
 };
-use core::mem::transmute;
 #[cfg(target_feature = "avx2")]
 use {
     crate::avx::{
@@ -340,10 +339,10 @@ fn u8s_to_u32s_scalar<const N: usize, const BINARY_SZ: usize>(
         }
         #[cfg(target_endian = "big")]
         unsafe {
-            *out.get_unchecked_mut(out_idx) = *binary_u8.get_unchecked(binary_u8_idx + 4);
-            *out.get_unchecked_mut(out_idx + 1) = *binary_u8.get_unchecked(binary_u8_idx + 5);
-            *out.get_unchecked_mut(out_idx + 2) = *binary_u8.get_unchecked(binary_u8_idx + 6);
-            *out.get_unchecked_mut(out_idx + 3) = *binary_u8.get_unchecked(binary_u8_idx + 7);
+            *out.get_unchecked_mut(idx) = *binary_u8.get_unchecked(idx);
+            *out.get_unchecked_mut(idx + 1) = *binary_u8.get_unchecked(idx);
+            *out.get_unchecked_mut(idx + 2) = *binary_u8.get_unchecked(idx);
+            *out.get_unchecked_mut(idx + 3) = *binary_u8.get_unchecked(idx);
         }
     }
 }
@@ -374,7 +373,7 @@ fn u8s_to_u32s_swapped_64_register(bytes: &[u8; N_64]) -> [__m256i; 2] {
 #[inline(always)]
 fn u8s_to_u32s_swapped_32(bytes: &[u8; N_32], out: &mut [u8; N_32]) {
     let res_m256i = u8s_to_u32s_swapped_32_register(bytes);
-    let out_bytes: [u8; N_32] = unsafe { transmute(res_m256i) };
+    let out_bytes: [u8; N_32] = unsafe { core::mem::transmute(res_m256i) };
     *out = out_bytes;
 }
 
@@ -384,7 +383,7 @@ fn u8s_to_u32s_swapped_32(bytes: &[u8; N_32], out: &mut [u8; N_32]) {
 #[inline(always)]
 fn u8s_to_u32s_swapped_64(bytes: &[u8; N_64], out: &mut [u8; N_64]) {
     let res_nested = u8s_to_u32s_swapped_64_register(bytes);
-    let out_bytes: [u8; N_64] = unsafe { transmute(res_nested) };
+    let out_bytes: [u8; N_64] = unsafe { core::mem::transmute(res_nested) };
     *out = out_bytes;
 }
 
@@ -407,24 +406,18 @@ fn u8s_to_u32s_swapped_64(bytes: &[u8; N_64], out: &mut [u8; N_64]) {
 fn make_binary_array_32(bytes: &[u8; N_32]) -> [u32; BINARY_SZ_32] {
     // on LE take four-byte blocks and reverse them
     // 3 2 1 0 7 6 5 4 etc
-    // on BE this is a noop
-    #[cfg(target_endian = "little")]
+    // on BE just take four-byte blocks
+
+    let mut out = [0u8; N_32];
+    #[cfg(target_feature = "avx2")]
     {
-        let mut out = [0u8; N_32];
-        #[cfg(target_feature = "avx2")]
-        {
-            u8s_to_u32s_swapped_32(bytes, &mut out);
-        }
-        #[cfg(not(target_feature = "avx2"))]
-        {
-            u8s_to_u32s_scalar::<N_32, BINARY_SZ_32>(&mut out, bytes);
-        }
-        unsafe { transmute(out) }
+        u8s_to_u32s_swapped_32(bytes, &mut out);
     }
-    #[cfg(target_endian = "big")]
+    #[cfg(not(target_feature = "avx2"))]
     {
-        bytes
+        u8s_to_u32s_scalar::<N_32, BINARY_SZ_32>(&mut out, bytes);
     }
+    unsafe { core::mem::transmute(out) }
 }
 
 #[inline(always)]
@@ -432,23 +425,17 @@ fn make_binary_array_64(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
     // on LE take four-byte blocks and reverse them
     // 3 2 1 0 7 6 5 4 etc
     // on BE this is a noop
-    #[cfg(target_endian = "little")]
+
+    let mut out = [0u8; N_64];
+    #[cfg(target_feature = "avx2")]
     {
-        let mut out = [0u8; N_64];
-        #[cfg(target_feature = "avx2")]
-        {
-            u8s_to_u32s_swapped_64(bytes, &mut out);
-        }
-        #[cfg(not(target_feature = "avx2"))]
-        {
-            u8s_to_u32s_scalar::<N_64, BINARY_SZ_64>(&mut out, bytes);
-        }
-        unsafe { transmute(out) }
+        u8s_to_u32s_swapped_64(bytes, &mut out);
     }
-    #[cfg(target_endian = "big")]
+    #[cfg(not(target_feature = "avx2"))]
     {
-        bytes
+        u8s_to_u32s_scalar::<N_64, BINARY_SZ_64>(&mut out, bytes);
     }
+    unsafe { core::mem::transmute(out) }
 }
 
 #[cfg(feature = "dev-utils")]

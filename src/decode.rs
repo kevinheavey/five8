@@ -343,6 +343,7 @@ fn truncate_and_swap_u64s_registers<
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_feature = "avx2")]
     use core::arch::x86_64::{_mm256_shuffle_epi32, _mm256_unpacklo_epi64};
 
     use super::*;
@@ -517,6 +518,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_feature = "avx2")]
     #[test]
     fn test_pshufb_tmp() {
         let bytes: [u32; 8] = from_fn(|i| i as u32);
