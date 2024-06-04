@@ -22,9 +22,7 @@ impl core::fmt::Display for DecodeError {
             DecodeError::LargestTermTooHigh => {
                 formatter.write_str("Largest term greater than 2^32")
             }
-            DecodeError::OutputTooLong => {
-                formatter.write_str("Decoded output has too many bytes")
-            }
+            DecodeError::OutputTooLong => formatter.write_str("Decoded output has too many bytes"),
         }
     }
 }
