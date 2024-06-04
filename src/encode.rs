@@ -702,10 +702,8 @@ mod tests {
     ) {
         assert_eq!(&encode_32_to_string(&bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
-        let mut null_terminated = encoded.as_bytes().to_vec();
-        null_terminated.push(b'\0');
         let mut decoded = [0u8; 32];
-        decode_32(&null_terminated, &mut decoded).unwrap();
+        decode_32(encoded.as_bytes(), &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
@@ -718,10 +716,8 @@ mod tests {
     ) {
         assert_eq!(&encode_64_to_string(&bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
-        let mut null_terminated = encoded.as_bytes().to_vec();
-        null_terminated.push(b'\0');
         let mut decoded = [0u8; 64];
-        decode_64(&null_terminated, &mut decoded).unwrap();
+        decode_64(encoded.as_bytes(), &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
@@ -791,7 +787,7 @@ mod tests {
 
     #[test]
     fn test_base58_decode_32() {
-        let encoded = b"11111111111111111111111111111112\0";
+        let encoded = b"11111111111111111111111111111112";
         let encoded_ptr = encoded.as_ptr();
         assert_eq!(unsafe { *encoded_ptr.offset(31) }, b'2');
         let mut decoded = [0u8; 32];

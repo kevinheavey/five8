@@ -1,11 +1,5 @@
 #[cfg(target_feature = "avx2")]
-use core::{
-    arch::x86_64::{
-        __m128i, __m256i, _mm256_loadu_si256, _mm256_set_epi8, _mm256_shuffle_epi8,
-        _mm_unpacklo_epi64,
-    },
-    mem::transmute,
-};
+use core::mem::transmute;
 
 use core::array::from_fn;
 
@@ -72,7 +66,7 @@ fn truncate_and_swap_u64s_scalar<const BINARY_SZ: usize, const N: usize>(
 
 #[inline(always)]
 fn base58_decode_after_be_convert<const N: usize>(
-    out: &mut [u8; N],
+    out: &[u8; N],
     encoded: &[u8],
 ) -> Result<(), DecodeError> {
     /* Make sure the encoded version has the same number of leading '1's
@@ -80,16 +74,19 @@ fn base58_decode_after_be_convert<const N: usize>(
     the end of encoded, because '\0' != '1', so it will return NULL. */
     let mut leading_zero_cnt = 0u64;
     while leading_zero_cnt < N as u64 {
+        if unlikely(leading_zero_cnt as usize >= encoded.len()) {
+            return Err(DecodeError::TooShort);
+        }
         let out_val = unsafe { *out.get_unchecked(leading_zero_cnt as usize) };
         if out_val != 0 {
             break;
         }
         if unlikely(unsafe { *encoded.get_unchecked(leading_zero_cnt as usize) != b'1' }) {
-            return Err(DecodeError::WhatToCallThis);
+            return Err(DecodeError::TooShort);
         }
         leading_zero_cnt += 1;
     }
-    if unlikely(unsafe { *encoded.get_unchecked(leading_zero_cnt as usize) == b'1' }) {
+    if unlikely(encoded[leading_zero_cnt as usize] == b'1') {
         return Err(DecodeError::WhatToCallThisToo);
     }
     Ok(())
@@ -97,7 +94,7 @@ fn base58_decode_after_be_convert<const N: usize>(
 
 #[inline(always)]
 fn base58_decode_before_be_convert<
-    const ENCODED_SZ: usize,
+    const ENCODED_LEN: usize,
     const RAW58_SZ: usize,
     const INTERMEDIATE_SZ: usize,
     const BINARY_SZ: usize,
@@ -106,11 +103,8 @@ fn base58_decode_before_be_convert<
     dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
 ) -> Result<[u64; BINARY_SZ], DecodeError> {
     let mut char_cnt = 0usize;
-    while char_cnt < ENCODED_SZ {
-        let c = unsafe { *encoded.get_unchecked(char_cnt) };
-        if c == 0 {
-            break;
-        }
+    while char_cnt < (ENCODED_LEN + 1).min(encoded.len()) {
+        let c = encoded[char_cnt];
         /* If c<'1', this will underflow and idx will be huge */
         let idx = (c as u64).wrapping_sub(BASE58_INVERSE_TABLE_OFFSET as u64);
         let idx = idx.min(BASE58_INVERSE_TABLE_SENTINEL as u64);
@@ -119,7 +113,7 @@ fn base58_decode_before_be_convert<
             return Err(DecodeError::InvalidChar(c));
         }
     }
-    if unlikely(char_cnt == ENCODED_SZ) {
+    if unlikely(char_cnt == ENCODED_LEN + 1) {
         /* too long */
         return Err(DecodeError::TooLong);
     }
@@ -260,7 +254,7 @@ pub(crate) const BASE58_ENCODED_64_SZ: usize = BASE58_ENCODED_64_LEN + 1; /* Inc
 #[inline]
 pub fn decode_32(encoded: &[u8], out: &mut [u8; N_32]) -> Result<(), DecodeError> {
     let binary = base58_decode_before_be_convert::<
-        BASE58_ENCODED_32_SZ,
+        BASE58_ENCODED_32_LEN,
         RAW58_SZ_32,
         INTERMEDIATE_SZ_32,
         BINARY_SZ_32,
@@ -276,7 +270,7 @@ pub fn decode_32(encoded: &[u8], out: &mut [u8; N_32]) -> Result<(), DecodeError
 #[inline]
 pub fn decode_64(encoded: &[u8], out: &mut [u8; N_64]) -> Result<(), DecodeError> {
     let binary = base58_decode_before_be_convert::<
-        BASE58_ENCODED_64_SZ,
+        BASE58_ENCODED_64_LEN,
         RAW58_SZ_64,
         INTERMEDIATE_SZ_64,
         BINARY_SZ_64,
@@ -352,34 +346,31 @@ mod tests {
     use super::*;
 
     fn check_bad_decode_32(expected_err: DecodeError, encoded: &str) {
-        let mut null_terminated = encoded.as_bytes().to_vec();
-        null_terminated.push(b'\0');
+        println!("encoded: {encoded}");
         let mut decoded = [0u8; 32];
-        let err = decode_32(&null_terminated, &mut decoded).unwrap_err();
+        let err = decode_32(encoded.as_bytes(), &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
     }
 
     fn check_bad_decode_64(expected_err: DecodeError, encoded: &str) {
-        let mut null_terminated = encoded.as_bytes().to_vec();
-        null_terminated.push(b'\0');
         let mut decoded = [0u8; 64];
-        let err = decode_64(&null_terminated, &mut decoded).unwrap_err();
+        let err = decode_64(encoded.as_bytes(), &mut decoded).unwrap_err();
         assert_eq!(err, expected_err);
     }
 
     #[test]
     fn test_decode_error_32() {
-        check_bad_decode_32(DecodeError::WhatToCallThis, "1");
+        check_bad_decode_32(DecodeError::TooShort, "1");
         check_bad_decode_32(
-            DecodeError::WhatToCallThis,
+            DecodeError::TooShort,
             "1111111111111111111111111111111",
         );
         check_bad_decode_32(
-            DecodeError::WhatToCallThis,
+            DecodeError::TooShort,
             "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJz",
         );
         check_bad_decode_32(
-            DecodeError::WhatToCallThis,
+            DecodeError::TooShort,
             "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL",
         );
         check_bad_decode_32(
@@ -428,7 +419,7 @@ mod tests {
     fn test_decode_unprintable_32() {
         let encoded = [
             49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 49,
-            49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 0, 1, 0, 0, 0, 0, 0, 127, 0,
+            49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 0, 1, 0, 0, 0, 0, 0, 127,
         ];
         let mut out = [0u8; 32];
         decode_32(&encoded, &mut out).unwrap();
@@ -437,16 +428,16 @@ mod tests {
 
     #[test]
     fn test_decode_error_64() {
-        check_bad_decode_64(DecodeError::WhatToCallThis, "1");
+        check_bad_decode_64(DecodeError::TooShort, "1");
         check_bad_decode_64(
-            DecodeError::WhatToCallThis,
+            DecodeError::TooShort,
             "111111111111111111111111111111111111111111111111111111111111111",
         );
         check_bad_decode_64(
-            DecodeError::WhatToCallThis,
+            DecodeError::TooShort,
             "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA",
         );
-        check_bad_decode_64(DecodeError::WhatToCallThis, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QW");
+        check_bad_decode_64(DecodeError::TooShort, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QW");
         check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QWabc");
         check_bad_decode_64(
             DecodeError::WhatToCallThisToo,
