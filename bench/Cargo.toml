@@ -6,7 +6,10 @@ resolver = "2"
 
 [dev-dependencies]
 bs58 = "0.4.0"
-criterion = "0.4.0"
+criterion = { version = "0.4.0", default-features = false, features = [
+    "rayon",
+    "cargo_bench_support",
+] }
 fd_bs58 = { git = "https://github.com/Lou-Kamades/fd_bs58.git", rev = "4c66dec" }
 five8 = { path = "..", features = ["dev-utils"] }
 
