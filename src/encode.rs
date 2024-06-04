@@ -340,9 +340,9 @@ fn u8s_to_u32s_scalar<const N: usize, const BINARY_SZ: usize>(
         #[cfg(target_endian = "big")]
         unsafe {
             *out.get_unchecked_mut(idx) = *binary_u8.get_unchecked(idx);
-            *out.get_unchecked_mut(idx + 1) = *binary_u8.get_unchecked(idx);
-            *out.get_unchecked_mut(idx + 2) = *binary_u8.get_unchecked(idx);
-            *out.get_unchecked_mut(idx + 3) = *binary_u8.get_unchecked(idx);
+            *out.get_unchecked_mut(idx + 1) = *binary_u8.get_unchecked(idx + 1);
+            *out.get_unchecked_mut(idx + 2) = *binary_u8.get_unchecked(idx + 2);
+            *out.get_unchecked_mut(idx + 3) = *binary_u8.get_unchecked(idx + 3);
         }
     }
 }
