@@ -15,16 +15,10 @@ fuzz_target!(|data: &[u8]| {
                 let bytes = decoded.unwrap();
                 if bytes.len() == 64 {
                     // other library can decode things that aren't 64 bytes
-                    panic!(
-                        "five8 errored when bs58 was ok: {:?}, {:?}",
-                        bytes, fd
-                    );
+                    panic!("five8 errored when bs58 was ok: {:?}, {:?}", bytes, fd);
                 }
             } else if decoded.is_err() && !fd.is_err() {
-                panic!(
-                    "bs58 errored when five8 was ok: {:?}, {:?}",
-                    decoded, fd
-                );
+                panic!("bs58 errored when five8 was ok: {:?}, {:?}", decoded, fd);
             } else if decoded.is_err() && fd.is_err() {
                 // good
             } else {
