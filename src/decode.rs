@@ -91,7 +91,7 @@ fn base58_decode_after_be_convert<const N: usize>(
             .get(leading_zero_cnt as usize)
             .map_or(false, |x| *x == b'1'),
     ) {
-        return Err(DecodeError::WhatToCallThisToo);
+        return Err(DecodeError::OutputTooLong);
     }
     Ok(())
 }
@@ -376,7 +376,7 @@ mod tests {
             "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofLRda4",
         );
         check_bad_decode_32(
-            DecodeError::WhatToCallThisToo,
+            DecodeError::OutputTooLong,
             "111111111111111111111111111111111",
         );
         check_bad_decode_32(
@@ -384,7 +384,7 @@ mod tests {
             "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFJ",
         ); /* 2nd-smallest 33 byte value that doesn't start with 0x0 */
         check_bad_decode_32(
-            DecodeError::WhatToCallThisToo,
+            DecodeError::OutputTooLong,
             "11aEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWx",
         );
         check_bad_decode_32(
@@ -438,7 +438,7 @@ mod tests {
         check_bad_decode_64(DecodeError::TooShort, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QW");
         check_bad_decode_64(DecodeError::TooLong, "2AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QWabc");
         check_bad_decode_64(
-            DecodeError::WhatToCallThisToo,
+            DecodeError::OutputTooLong,
             "11111111111111111111111111111111111111111111111111111111111111111",
         );
         check_bad_decode_64(
@@ -446,7 +446,7 @@ mod tests {
             "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roS"
         ); /* 2nd-smallest 65 byte value that doesn't start with 0x0 */
 
-        check_bad_decode_64(DecodeError::WhatToCallThisToo, "1114tjGcyzrfXw2deDmDAFFaFyss32WRgkYdDJuprrNEL8kc799TrHSQHfE9fv6ZDBUg2dsMJdfYr71hjE4EfjEN"); /* Start with too many '1's */
+        check_bad_decode_64(DecodeError::OutputTooLong, "1114tjGcyzrfXw2deDmDAFFaFyss32WRgkYdDJuprrNEL8kc799TrHSQHfE9fv6ZDBUg2dsMJdfYr71hjE4EfjEN"); /* Start with too many '1's */
         check_bad_decode_64(
             DecodeError::InvalidChar(48),
             "1111111111111111111111111111111111111111111111111111111111111110",
