@@ -49,12 +49,18 @@ fn bench_truncate_swap_64(c: &mut Criterion) {
         81, 152, 160, 142, 53, 60, 75, 224, 196, 208,
     ];
     let nums: [u64; 16] = unsafe { core::mem::transmute(bytes) };
-    let mut out = [0u8; 64];
     group.bench_function("truncate_and_swap_u64s_64", |b| {
+        let mut out = [0u8; 64];
         b.iter(|| five8::truncate_and_swap_u64s_64_pub(black_box(&nums), black_box(&mut out)))
     });
     group.bench_function("truncate_and_swap_u64s_scalar", |b| {
-        b.iter(|| five8::truncate_and_swap_u64s_scalar_pub::<16, 64>(black_box(&nums), black_box(&mut out)));
+        let mut out = [0u8; 64];
+        b.iter(|| {
+            five8::truncate_and_swap_u64s_scalar_pub::<16, 64>(
+                black_box(&nums),
+                black_box(&mut out),
+            )
+        });
     });
     group.finish();
 }
