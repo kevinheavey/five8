@@ -324,10 +324,8 @@ fn u8s_to_u32s_swapped_mask_32() -> __m256i {
 
 #[cfg(not(target_feature = "avx2"))]
 #[inline(always)]
-fn u8s_to_u32s_scalar<const N: usize, const BINARY_SZ: usize>(
-    out: &mut [u8; N],
-    binary_u8: &[u8; N],
-) {
+fn u8s_to_u32s_scalar<const N: usize, const BINARY_SZ: usize>(binary_u8: &[u8; N]) -> [u8; N] {
+    let mut out = [0u8; N];
     for i in 0..BINARY_SZ {
         let idx = i * 4;
         #[cfg(target_endian = "little")]
@@ -345,6 +343,7 @@ fn u8s_to_u32s_scalar<const N: usize, const BINARY_SZ: usize>(
             *out.get_unchecked_mut(idx + 3) = *binary_u8.get_unchecked(idx + 3);
         }
     }
+    out
 }
 
 #[cfg(target_feature = "avx2")]
@@ -371,20 +370,18 @@ fn u8s_to_u32s_swapped_64_register(bytes: &[u8; N_64]) -> [__m256i; 2] {
 
 #[cfg(target_feature = "avx2")]
 #[inline(always)]
-fn u8s_to_u32s_swapped_32(bytes: &[u8; N_32], out: &mut [u8; N_32]) {
+fn u8s_to_u32s_swapped_32(bytes: &[u8; N_32]) -> [u8; N_32] {
     let res_m256i = u8s_to_u32s_swapped_32_register(bytes);
-    let out_bytes: [u8; N_32] = unsafe { core::mem::transmute(res_m256i) };
-    *out = out_bytes;
+    unsafe { core::mem::transmute(res_m256i) }
 }
 
 // replacing this func with the scalar version worsened the
 // encode_64 benchmark by 150%.
 #[cfg(target_feature = "avx2")]
 #[inline(always)]
-fn u8s_to_u32s_swapped_64(bytes: &[u8; N_64], out: &mut [u8; N_64]) {
+fn u8s_to_u32s_swapped_64(bytes: &[u8; N_64]) -> [u8; N_64] {
     let res_nested = u8s_to_u32s_swapped_64_register(bytes);
-    let out_bytes: [u8; N_64] = unsafe { core::mem::transmute(res_nested) };
-    *out = out_bytes;
+    unsafe { core::mem::transmute(res_nested) }
 }
 
 // fn u8s_to_u32s_swapped_64(bytes: [u8; N_64]) -> [u8; N_64] {
@@ -408,15 +405,16 @@ fn make_binary_array_32(bytes: &[u8; N_32]) -> [u32; BINARY_SZ_32] {
     // 3 2 1 0 7 6 5 4 etc
     // on BE just take four-byte blocks
 
-    let mut out = [0u8; N_32];
-    #[cfg(target_feature = "avx2")]
-    {
-        u8s_to_u32s_swapped_32(bytes, &mut out);
-    }
-    #[cfg(not(target_feature = "avx2"))]
-    {
-        u8s_to_u32s_scalar::<N_32, BINARY_SZ_32>(&mut out, bytes);
-    }
+    let out = {
+        #[cfg(target_feature = "avx2")]
+        {
+            u8s_to_u32s_swapped_32(bytes)
+        }
+        #[cfg(not(target_feature = "avx2"))]
+        {
+            u8s_to_u32s_scalar::<N_32, BINARY_SZ_32>(bytes)
+        }
+    };
     unsafe { core::mem::transmute(out) }
 }
 
@@ -426,15 +424,16 @@ fn make_binary_array_64(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
     // 3 2 1 0 7 6 5 4 etc
     // on BE this is a noop
 
-    let mut out = [0u8; N_64];
-    #[cfg(target_feature = "avx2")]
-    {
-        u8s_to_u32s_swapped_64(bytes, &mut out);
-    }
-    #[cfg(not(target_feature = "avx2"))]
-    {
-        u8s_to_u32s_scalar::<N_64, BINARY_SZ_64>(&mut out, bytes);
-    }
+    let out = {
+        #[cfg(target_feature = "avx2")]
+        {
+            u8s_to_u32s_swapped_64(bytes)
+        }
+        #[cfg(not(target_feature = "avx2"))]
+        {
+            u8s_to_u32s_scalar::<N_64, BINARY_SZ_64>(bytes)
+        }
+    };
     unsafe { core::mem::transmute(out) }
 }
 
@@ -727,8 +726,7 @@ mod tests {
     ) {
         assert_eq!(&encode_32_to_string(&bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
-        let mut decoded = [0u8; 32];
-        decode_32(encoded.as_bytes(), &mut decoded).unwrap();
+        let decoded = decode_32(encoded.as_bytes()).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
@@ -741,8 +739,7 @@ mod tests {
     ) {
         assert_eq!(&encode_64_to_string(&bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
-        let mut decoded = [0u8; 64];
-        decode_64(encoded.as_bytes(), &mut decoded).unwrap();
+        let decoded = decode_64(encoded.as_bytes()).unwrap();
         assert_eq!(&decoded, bytes);
     }
 
@@ -815,8 +812,7 @@ mod tests {
         let encoded = b"11111111111111111111111111111112";
         let encoded_ptr = encoded.as_ptr();
         assert_eq!(unsafe { *encoded_ptr.offset(31) }, b'2');
-        let mut decoded = [0u8; 32];
-        decode_32(encoded, &mut decoded).unwrap();
+        let decoded = decode_32(encoded).unwrap();
         let mut expected = [0u8; 32];
         expected[31] = 1;
         assert_eq!(expected, decoded);
@@ -872,8 +868,7 @@ mod tests {
     #[test]
     fn test_u8s_to_u32s_swapped_32() {
         let bytes: [u8; 32] = from_fn(|i| i as u8);
-        let mut out = [0u8; 32];
-        u8s_to_u32s_swapped_32(&bytes, &mut out);
+        let out = u8s_to_u32s_swapped_32(&bytes);
         assert_eq!(
             out,
             [
@@ -887,8 +882,7 @@ mod tests {
     #[test]
     fn test_u8s_to_u32s_swapped_64() {
         let bytes: [u8; 64] = from_fn(|i| i as u8);
-        let mut out = [0u8; N_64];
-        u8s_to_u32s_swapped_64(&bytes, &mut out);
+        let out = u8s_to_u32s_swapped_64(&bytes);
         assert_eq!(
             out,
             [

@@ -4,7 +4,6 @@ fn showcase_decode_32(c: &mut Criterion) {
     let mut group = c.benchmark_group("showcase_decode_32");
     let string = "2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG";
     let bytes = b"2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG";
-    let mut out = [0u8; 32];
 
     group.bench_function("decode_bs58_noalloc", |b| {
         let mut output = [0; 32];
@@ -14,7 +13,7 @@ fn showcase_decode_32(c: &mut Criterion) {
         b.iter(|| fd_bs58::decode_32(black_box(string)))
     });
     group.bench_function("decode_five8", |b| {
-        b.iter(|| five8::decode_32(black_box(bytes), black_box(&mut out)))
+        b.iter(|| five8::decode_32(black_box(bytes)))
     });
     group.finish();
 }
@@ -23,8 +22,6 @@ fn showcase_decode_64(c: &mut Criterion) {
     let mut group = c.benchmark_group("showcase_decode_64");
     let string =
         "11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df";
-    let bytes =
-        b"11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df";
     let mut out = [0u8; 64];
 
     group.bench_function("decode_bs58_noalloc", |b| {
@@ -35,7 +32,7 @@ fn showcase_decode_64(c: &mut Criterion) {
         b.iter(|| fd_bs58::decode_64(black_box(string)))
     });
     group.bench_function("decode_five8", |b| {
-        b.iter(|| five8::decode_64(black_box(bytes), black_box(&mut out)))
+        b.iter(|| five8::decode_64(black_box(&mut out)))
     });
     group.finish();
 }
@@ -52,13 +49,11 @@ fn bench_truncate_swap_64(c: &mut Criterion) {
         81, 152, 160, 142, 53, 60, 75, 224, 196, 208,
     ];
     let nums: [u64; 16] = unsafe { core::mem::transmute(bytes) };
-    let mut out = [0u8; 64];
-
     group.bench_function("truncate_and_swap_u64s_64", |b| {
-        b.iter(|| five8::truncate_and_swap_u64s_64_pub(black_box(&mut out), black_box(&nums)))
+        b.iter(|| five8::truncate_and_swap_u64s_64_pub(black_box(&nums)))
     });
     group.bench_function("truncate_and_swap_u64s_scalar", |b| {
-        b.iter(|| five8::truncate_and_swap_u64s_scalar_pub(black_box(&mut out), black_box(&nums)));
+        b.iter(|| five8::truncate_and_swap_u64s_scalar_pub::<16, 64>(black_box(&nums)));
     });
     group.finish();
 }
