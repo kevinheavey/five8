@@ -61,7 +61,7 @@ fn showcase_encode_64(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_encode_64_scalar_breakdown(c: &mut Criterion) {
+fn encode_64_scalar_breakdown(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode_64_scalar_breakdown");
     let bytes_64: [u8; 64] = [
         0, 0, 10, 85, 198, 191, 71, 18, 5, 54, 6, 255, 181, 32, 227, 150, 208, 3, 157, 135, 222,
@@ -95,6 +95,6 @@ criterion_group!(
     benches,
     showcase_encode_32,
     showcase_encode_64,
-    bench_encode_64_scalar_breakdown
+    encode_64_scalar_breakdown
 );
 criterion_main!(benches);
