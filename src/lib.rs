@@ -16,8 +16,9 @@ pub use error::DecodeError;
 pub use {
     decode::{truncate_and_swap_u64s_64_pub, truncate_and_swap_u64s_scalar_pub},
     encode::{
-        in_leading_0s_scalar_pub, intermediate_to_base58_scalar_64_pub, make_binary_array_64_pub,
-        make_intermediate_array_64_pub,
+        in_leading_0s_32_pub, in_leading_0s_scalar_pub, intermediate_to_base58_32_pub,
+        intermediate_to_base58_scalar_64_pub, make_binary_array_32_pub, make_binary_array_64_pub,
+        make_intermediate_array_32_pub, make_intermediate_array_64_pub,
     },
 };
 mod unlikely;

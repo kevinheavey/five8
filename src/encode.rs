@@ -172,6 +172,18 @@ pub fn in_leading_0s_scalar_pub<const BYTE_CNT: usize>(bytes: *const u8) -> u64 
     in_leading_0s_scalar::<BYTE_CNT>(bytes)
 }
 
+#[cfg(feature = "dev-utils")]
+pub fn in_leading_0s_32_pub(bytes: *const u8) -> u64 {
+    #[cfg(target_feature = "avx2")]
+    {
+        in_leading_0s_32_avx(bytes)
+    }
+    #[cfg(not(target_feature = "avx2"))]
+    {
+        in_leading_0s_scalar::<N_32>(bytes)
+    }
+}
+
 #[inline(always)]
 fn add_binary_to_intermediate<const INTERMEDIATE_SZ_W_PADDING: usize, const BINARY_SZ: usize>(
     intermediate: &mut Intermediate<INTERMEDIATE_SZ_W_PADDING>,
@@ -274,6 +286,15 @@ pub fn intermediate_to_base58_scalar_64_pub(
         in_leading_0s,
         out,
     )
+}
+
+#[cfg(feature = "dev-utils")]
+pub fn intermediate_to_base58_32_pub(
+    intermediate: &IntermediatePub<INTERMEDIATE_SZ_W_PADDING_32>,
+    in_leading_0s: u64,
+    out: &mut [u8],
+) -> usize {
+    intermediate_to_base58_32(&intermediate.0, in_leading_0s, out)
 }
 
 #[inline(always)]
@@ -439,6 +460,11 @@ fn make_binary_array_64(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
 }
 
 #[cfg(feature = "dev-utils")]
+pub fn make_binary_array_32_pub(bytes: &[u8; N_32]) -> [u32; BINARY_SZ_32] {
+    make_binary_array_32(bytes)
+}
+
+#[cfg(feature = "dev-utils")]
 pub fn make_binary_array_64_pub(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
     make_binary_array_64(bytes)
 }
@@ -583,10 +609,90 @@ fn make_intermediate_array_64(
 }
 
 #[cfg(feature = "dev-utils")]
+pub fn make_intermediate_array_32_pub(
+    binary: [u32; BINARY_SZ_32],
+) -> IntermediatePub<INTERMEDIATE_SZ_W_PADDING_32> {
+    IntermediatePub(make_intermediate_array_32(binary))
+}
+
+#[cfg(feature = "dev-utils")]
 pub fn make_intermediate_array_64_pub(
     binary: [u32; BINARY_SZ_64],
 ) -> IntermediatePub<INTERMEDIATE_SZ_W_PADDING_64> {
     IntermediatePub(make_intermediate_array_64(binary))
+}
+
+#[cfg(target_feature = "avx2")]
+#[inline(always)]
+fn intermediate_to_base58_32_avx(
+    intermediate: &Intermediate<INTERMEDIATE_SZ_W_PADDING_32>,
+    in_leading_0s: u64,
+    out: &mut [u8],
+) -> usize {
+    let intermediate_ptr = intermediate.0.as_ptr() as *const i64;
+    let intermediate0 = wl_ld(intermediate_ptr);
+    let intermediate1 = wl_ld(unsafe { intermediate_ptr.offset(4) });
+    let intermediate2 = wl_ld(unsafe { intermediate_ptr.offset(8) });
+    let raw0 = intermediate_to_raw(intermediate0);
+    let raw1 = intermediate_to_raw(intermediate1);
+    let raw2 = intermediate_to_raw(intermediate2);
+    let (compact0, compact1) = ten_per_slot_down_32(raw0, raw1, raw2);
+    let raw_leading_0s = count_leading_zeros_45(compact0, compact1);
+    let base58_0 = raw_to_base58(compact0);
+    let base58_1 = raw_to_base58(compact1);
+    let skip = raw_leading_0s as usize - in_leading_0s as usize;
+    /* We know the final string is between 32 and 44 characters, so skip
+     has to be in [1, 13].
+
+     Suppose base58_0 is [ a0 a1 a2 ... af | b0 b1 b2 ... bf ] and skip
+     is 2.
+     It would be nice if we had something like the 128-bit barrel shifts
+     we used in ten_per_slot_down, but they require immediates.
+     Instead, we'll shift each ulong right by (skip%8) bytes:
+
+     [ a2 a3 .. a7 0 0 aa ab .. af 0 0 | b2 b3 .. b7 0 0 ba .. bf 0 0 ]
+     and maskstore to write just 8 bytes, skipping the first
+     floor(skip/8) ulongs, to a starting address of out-8*floor(skip/8).
+
+           out
+             V
+           [ a2 a3 a4 a5 a6 a7  0  0 -- -- ... ]
+
+     Now we use another maskstore on the original base58_0, masking out
+     the first floor(skip/8)+1 ulongs, and writing to out-skip:
+           out
+             V
+     [ -- -- -- -- -- -- -- -- a8 a9 aa ab ... bd be bf ]
+
+     Finally, we need to write the low 13 bytes from base58_1 and a '\0'
+     terminator, starting at out-skip+32.  The easiest way to do this is
+     actually to shift in 3 more bytes, write the full 16B and do it
+     prior to the previous write:
+                                               out-skip+29
+                                                V
+                                              [ 0  0  0  c0 c1 c2 .. cc ]
+    */
+    let w_skip = wl_bcast(skip as i64);
+    let mod8_mask = wl_bcast(7);
+    let compare = wl(0, 1, 2, 3);
+    let shift_qty = wl_shl::<3>(wl_and(w_skip, mod8_mask)); /* bytes->bits */
+    let shifted = wl_shru_vector(base58_0, shift_qty);
+    let skip_div8 = wl_shru::<3>(w_skip);
+    let mask1 = wl_eq(skip_div8, compare);
+    let out_ptr = out.as_mut_ptr();
+    let out_offset = unsafe { out_ptr.offset(-8 * (skip as isize / 8)) } as *mut i64;
+    unsafe { _mm256_maskstore_epi64(out_offset, mask1, shifted) };
+    let last = unsafe { _mm_bslli_si128(_mm256_extractf128_si256(base58_1, 0), 3) };
+    unsafe { _mm_storeu_si128(out_ptr.offset(29 - skip as isize) as *mut __m128i, last) };
+    let mask2 = wl_gt(compare, skip_div8);
+    unsafe {
+        _mm256_maskstore_epi64(
+            out_ptr.offset(-(skip as isize)) as *mut i64,
+            mask2,
+            base58_0,
+        )
+    };
+    skip
 }
 
 #[inline]
@@ -603,6 +709,36 @@ pub fn encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut [u8]) {
         }
     };
     let binary = make_binary_array_32(bytes);
+    let intermediate = make_intermediate_array_32(binary);
+    let skip = intermediate_to_base58_32(&intermediate, in_leading_0s, out);
+    fd_ulong_store_if(opt_len, RAW58_SZ_32 as u8 - skip as u8);
+}
+
+#[inline(always)]
+fn intermediate_to_base58_32(
+    intermediate: &Intermediate<INTERMEDIATE_SZ_W_PADDING_32>,
+    in_leading_0s: u64,
+    out: &mut [u8],
+) -> usize {
+    let skip = {
+        #[cfg(not(target_feature = "avx2"))]
+        {
+            intermediate_to_base58_scalar::<
+                INTERMEDIATE_SZ_W_PADDING_32,
+                RAW58_SZ_32,
+                INTERMEDIATE_SZ_32,
+            >(&intermediate, in_leading_0s, out)
+        }
+        #[cfg(target_feature = "avx2")]
+        intermediate_to_base58_32_avx(&intermediate, in_leading_0s, out)
+    };
+    skip
+}
+
+#[inline(always)]
+fn make_intermediate_array_32(
+    binary: [u32; BINARY_SZ_32],
+) -> Intermediate<INTERMEDIATE_SZ_W_PADDING_32> {
     /* Convert to the intermediate format:
       X = sum_i intermediate[i] * 58^(5*(INTERMEDIATE_SZ-1-i))
     Initially, we don't require intermediate[i] < 58^5, but we do want
@@ -617,85 +753,7 @@ pub fn encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut [u8]) {
     adjust_intermediate_array::<INTERMEDIATE_SZ_W_PADDING_32, INTERMEDIATE_SZ_32>(
         &mut intermediate,
     );
-    let skip = {
-        #[cfg(not(target_feature = "avx2"))]
-        {
-            intermediate_to_base58_scalar::<
-                INTERMEDIATE_SZ_W_PADDING_32,
-                RAW58_SZ_32,
-                INTERMEDIATE_SZ_32,
-            >(&intermediate, in_leading_0s, out)
-        }
-
-        #[cfg(target_feature = "avx2")]
-        {
-            let intermediate_ptr = intermediate.0.as_ptr() as *const i64;
-            let intermediate0 = wl_ld(intermediate_ptr);
-            let intermediate1 = wl_ld(unsafe { intermediate_ptr.offset(4) });
-            let intermediate2 = wl_ld(unsafe { intermediate_ptr.offset(8) });
-            let raw0 = intermediate_to_raw(intermediate0);
-            let raw1 = intermediate_to_raw(intermediate1);
-            let raw2 = intermediate_to_raw(intermediate2);
-            let (compact0, compact1) = ten_per_slot_down_32(raw0, raw1, raw2);
-            let raw_leading_0s = count_leading_zeros_45(compact0, compact1);
-            let base58_0 = raw_to_base58(compact0);
-            let base58_1 = raw_to_base58(compact1);
-            let skip = raw_leading_0s - in_leading_0s;
-            /* We know the final string is between 32 and 44 characters, so skip
-             has to be in [1, 13].
-
-             Suppose base58_0 is [ a0 a1 a2 ... af | b0 b1 b2 ... bf ] and skip
-             is 2.
-             It would be nice if we had something like the 128-bit barrel shifts
-             we used in ten_per_slot_down, but they require immediates.
-             Instead, we'll shift each ulong right by (skip%8) bytes:
-
-             [ a2 a3 .. a7 0 0 aa ab .. af 0 0 | b2 b3 .. b7 0 0 ba .. bf 0 0 ]
-             and maskstore to write just 8 bytes, skipping the first
-             floor(skip/8) ulongs, to a starting address of out-8*floor(skip/8).
-
-                   out
-                     V
-                   [ a2 a3 a4 a5 a6 a7  0  0 -- -- ... ]
-
-             Now we use another maskstore on the original base58_0, masking out
-             the first floor(skip/8)+1 ulongs, and writing to out-skip:
-                   out
-                     V
-             [ -- -- -- -- -- -- -- -- a8 a9 aa ab ... bd be bf ]
-
-             Finally, we need to write the low 13 bytes from base58_1 and a '\0'
-             terminator, starting at out-skip+32.  The easiest way to do this is
-             actually to shift in 3 more bytes, write the full 16B and do it
-             prior to the previous write:
-                                                       out-skip+29
-                                                        V
-                                                      [ 0  0  0  c0 c1 c2 .. cc ]
-            */
-            let w_skip = wl_bcast(skip as i64);
-            let mod8_mask = wl_bcast(7);
-            let compare = wl(0, 1, 2, 3);
-            let shift_qty = wl_shl::<3>(wl_and(w_skip, mod8_mask)); /* bytes->bits */
-            let shifted = wl_shru_vector(base58_0, shift_qty);
-            let skip_div8 = wl_shru::<3>(w_skip);
-            let mask1 = wl_eq(skip_div8, compare);
-            let out_ptr = out.as_mut_ptr();
-            let out_offset = unsafe { out_ptr.offset(-8 * (skip as isize / 8)) } as *mut i64;
-            unsafe { _mm256_maskstore_epi64(out_offset, mask1, shifted) };
-            let last = unsafe { _mm_bslli_si128(_mm256_extractf128_si256(base58_1, 0), 3) };
-            unsafe { _mm_storeu_si128(out_ptr.offset(29 - skip as isize) as *mut __m128i, last) };
-            let mask2 = wl_gt(compare, skip_div8);
-            unsafe {
-                _mm256_maskstore_epi64(
-                    out_ptr.offset(-(skip as isize)) as *mut i64,
-                    mask2,
-                    base58_0,
-                )
-            };
-            skip
-        }
-    };
-    fd_ulong_store_if(opt_len, RAW58_SZ_32 as u8 - skip as u8);
+    intermediate
 }
 
 #[cfg(test)]
