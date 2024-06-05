@@ -254,35 +254,37 @@ pub(crate) const BASE58_ENCODED_32_LEN: usize = 44; /* Computed as ceil(log_58(2
 pub(crate) const BASE58_ENCODED_64_LEN: usize = 88; /* Computed as ceil(log_58(256^64 - 1)) */
 
 #[inline]
-pub fn decode_32(encoded: &[u8], out: &mut [u8; N_32]) -> Result<(), DecodeError> {
+pub fn decode_32<I: AsRef<[u8]>>(encoded: I, out: &mut [u8; N_32]) -> Result<(), DecodeError> {
+    let as_ref = encoded.as_ref();
     let binary = base58_decode_before_be_convert::<
         BASE58_ENCODED_32_LEN,
         RAW58_SZ_32,
         INTERMEDIATE_SZ_32,
         BINARY_SZ_32,
-    >(encoded, &DEC_TABLE_32)?;
+    >(as_ref, &DEC_TABLE_32)?;
     /* Convert each term to big endian for the final output */
     #[cfg(target_feature = "avx2")]
     truncate_and_swap_u64s_32(out, &binary);
     #[cfg(not(target_feature = "avx2"))]
     truncate_and_swap_u64s_scalar(out, &binary);
-    base58_decode_after_be_convert(out, encoded)
+    base58_decode_after_be_convert(out, as_ref)
 }
 
 #[inline]
-pub fn decode_64(encoded: &[u8], out: &mut [u8; N_64]) -> Result<(), DecodeError> {
+pub fn decode_64<I: AsRef<[u8]>>(encoded: I, out: &mut [u8; N_64]) -> Result<(), DecodeError> {
+    let as_ref = encoded.as_ref();
     let binary = base58_decode_before_be_convert::<
         BASE58_ENCODED_64_LEN,
         RAW58_SZ_64,
         INTERMEDIATE_SZ_64,
         BINARY_SZ_64,
-    >(encoded, &DEC_TABLE_64)?;
+    >(as_ref, &DEC_TABLE_64)?;
     /* Convert each term to big endian for the final output */
     #[cfg(target_feature = "avx2")]
     truncate_and_swap_u64s_64(out, &binary);
     #[cfg(not(target_feature = "avx2"))]
     truncate_and_swap_u64s_scalar(out, &binary);
-    base58_decode_after_be_convert(out, encoded)
+    base58_decode_after_be_convert(out, as_ref)
 }
 
 #[cfg(target_feature = "avx2")]
