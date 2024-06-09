@@ -26,3 +26,15 @@ impl core::fmt::Display for DecodeError {
         }
     }
 }
+
+impl DecodeError {
+    pub const fn unwrap_const(self) -> ! {
+        match self {
+            DecodeError::InvalidChar(_) => panic!("Illegal base58 char"),
+            DecodeError::TooLong => panic!("Base58 string too long"),
+            DecodeError::TooShort => panic!("Base58 string too short"),
+            DecodeError::LargestTermTooHigh => panic!("Largest term greater than 2^32"),
+            DecodeError::OutputTooLong => panic!("Decoded output has too many bytes"),
+        }
+    }
+}

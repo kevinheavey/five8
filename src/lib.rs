@@ -9,7 +9,10 @@ mod consts;
 mod decode;
 mod encode;
 mod error;
-pub use decode::{decode_32, decode_64};
+pub use decode::{
+    decode_32, decode_32_const, decode_32_const_unwrap, decode_64, decode_64_const,
+    decode_64_const_unwrap,
+};
 pub use encode::{encode_32, encode_64};
 pub use error::DecodeError;
 #[cfg(feature = "dev-utils")]
