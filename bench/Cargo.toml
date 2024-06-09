@@ -11,7 +11,7 @@ criterion = { version = "0.4.0", default-features = false, features = [
     "cargo_bench_support",
 ] }
 fd_bs58 = { git = "https://github.com/Lou-Kamades/fd_bs58.git", rev = "4c66dec" }
-five8 = { path = "..", features = ["dev-utils"] }
+five8 = { path = "../crates/five8", features = ["dev-utils"] }
 
 [[bench]]
 name = "encode"
