@@ -1,0 +1,8 @@
+[package]
+name = "five8_core"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[features]
+std = []

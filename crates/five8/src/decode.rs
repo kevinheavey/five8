@@ -3,27 +3,14 @@ use core::mem::transmute;
 
 use core::array::from_fn;
 
-use crate::{
-    consts::{
-        BINARY_SZ_32, BINARY_SZ_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64,
-        RAW58_SZ_32, RAW58_SZ_64,
-    },
-    error::DecodeError,
-    unlikely::unlikely,
+use five8_core::{
+    DecodeError, BASE58_ENCODED_32_LEN, BASE58_ENCODED_64_LEN, BASE58_INVALID_CHAR, BASE58_INVERSE,
+    BASE58_INVERSE_TABLE_OFFSET, BASE58_INVERSE_TABLE_SENTINEL, BINARY_SZ_32, BINARY_SZ_64,
+    DEC_TABLE_32, DEC_TABLE_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64, RAW58_SZ_32,
+    RAW58_SZ_64,
 };
 
-const BASE58_INVERSE_TABLE_OFFSET: u8 = b'1';
-const BASE58_INVERSE_TABLE_SENTINEL: u8 = 1 + b'z' - BASE58_INVERSE_TABLE_OFFSET;
-
-const BASE58_INVALID_CHAR: u8 = 255;
-
-const BAD: u8 = BASE58_INVALID_CHAR;
-const BASE58_INVERSE: [u8; 75] = [
-    0, 1, 2, 3, 4, 5, 6, 7, 8, BAD, BAD, BAD, BAD, BAD, BAD, BAD, 9, 10, 11, 12, 13, 14, 15, 16,
-    BAD, 17, 18, 19, 20, 21, BAD, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, BAD, BAD, BAD, BAD,
-    BAD, BAD, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, BAD, 44, 45, 46, 47, 48, 49, 50, 51, 52,
-    53, 54, 55, 56, 57, BAD,
-];
+use crate::unlikely::unlikely;
 
 #[cfg(feature = "dev-utils")]
 pub fn truncate_and_swap_u64s_scalar_pub<const BINARY_SZ: usize, const N: usize>(
@@ -64,30 +51,6 @@ fn truncate_and_swap_u64s_scalar<const BINARY_SZ: usize, const N: usize>(
     }
 }
 
-const fn truncate_and_swap_u64s_const<const BINARY_SZ: usize, const N: usize>(
-    binary: &[u64; BINARY_SZ],
-) -> [u8; N] {
-    let mut out = [0u8; N];
-    let binary_u8 = binary.as_ptr() as *const u8;
-    let mut i = 0;
-    while i < BINARY_SZ {
-        // take the first four bytes of each 8-byte block and reverse them:
-        // 3 2 1 0 11 10 9 8 19 18 17 16 27 26 25 24 etc
-        // or if on a BE machine, just take the last four bytes of each 8-byte block:
-        // 4 5 6 7 12 13 14 15 20 21 22 23 etc
-        let binary_u8_idx = i * 8;
-        let out_idx = i * 4;
-        unsafe {
-            out[out_idx] = *binary_u8.add(binary_u8_idx + 3);
-            out[out_idx + 1] = *binary_u8.add(binary_u8_idx + 2);
-            out[out_idx + 2] = *binary_u8.add(binary_u8_idx + 1);
-            out[out_idx + 3] = *binary_u8.add(binary_u8_idx);
-        }
-        i += 1
-    }
-    out
-}
-
 #[inline(always)]
 fn base58_decode_after_be_convert<const N: usize>(
     out: &[u8; N],
@@ -115,35 +78,6 @@ fn base58_decode_after_be_convert<const N: usize>(
             .get(leading_zero_cnt as usize)
             .map_or(false, |x| *x == b'1'),
     ) {
-        return Err(DecodeError::OutputTooLong);
-    }
-    Ok(())
-}
-
-const fn base58_decode_after_be_convert_const<const N: usize>(
-    out: &[u8; N],
-    encoded: &[u8],
-) -> Result<(), DecodeError> {
-    /* Make sure the encoded version has the same number of leading '1's
-    as the decoded version has leading 0s. The check doesn't read past
-    the end of encoded, because '\0' != '1', so it will return NULL. */
-    let mut leading_zero_cnt = 0u64;
-    while leading_zero_cnt < N as u64 {
-        if leading_zero_cnt as usize >= encoded.len() {
-            return Err(DecodeError::TooShort);
-        }
-        let out_val = out[leading_zero_cnt as usize];
-        if out_val != 0 {
-            break;
-        }
-        if encoded[leading_zero_cnt as usize] != b'1' {
-            return Err(DecodeError::TooShort);
-        }
-        leading_zero_cnt += 1;
-    }
-    if leading_zero_cnt as usize > N {
-        return Err(DecodeError::OutputTooLong);
-    } else if encoded[leading_zero_cnt as usize] == b'1' {
         return Err(DecodeError::OutputTooLong);
     }
     Ok(())
@@ -216,176 +150,6 @@ fn base58_decode_before_be_convert<
     Ok(binary)
 }
 
-const fn base58_decode_before_be_convert_const<
-    const ENCODED_LEN: usize,
-    const RAW58_SZ: usize,
-    const INTERMEDIATE_SZ: usize,
-    const BINARY_SZ: usize,
->(
-    encoded: &[u8],
-    dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
-) -> Result<[u64; BINARY_SZ], DecodeError> {
-    let mut char_cnt = 0usize;
-    let min_left = ENCODED_LEN + 1;
-    let min_right = encoded.len();
-    let num_iters = if min_left < min_right {
-        min_left
-    } else {
-        min_right
-    };
-    while char_cnt < num_iters {
-        let c = encoded[char_cnt];
-        /* If c<'1', this will underflow and idx will be huge */
-        let idx = (c as u64).wrapping_sub(BASE58_INVERSE_TABLE_OFFSET as u64);
-        let capped_idx = if idx < BASE58_INVERSE_TABLE_SENTINEL as u64 {
-            idx
-        } else {
-            BASE58_INVERSE_TABLE_SENTINEL as u64
-        };
-        char_cnt += 1;
-        if BASE58_INVERSE[capped_idx as usize] == BASE58_INVALID_CHAR {
-            return Err(DecodeError::InvalidChar(c));
-        }
-    }
-    if char_cnt == ENCODED_LEN + 1 {
-        /* too long */
-        return Err(DecodeError::TooLong);
-    }
-    let prepend_0 = RAW58_SZ - char_cnt;
-    let mut raw_base58 = [0u8; RAW58_SZ];
-    let mut j = 0;
-    while j < RAW58_SZ {
-        raw_base58[j] = if j < prepend_0 {
-            0
-        } else {
-            BASE58_INVERSE[(encoded[j - prepend_0] - BASE58_INVERSE_TABLE_OFFSET) as usize]
-        };
-        j += 1;
-    }
-    let mut intermediate = [0u64; INTERMEDIATE_SZ];
-    let mut i = 0;
-    while i < INTERMEDIATE_SZ {
-        intermediate[i] = raw_base58[5 * i] as u64 * 11316496
-            + raw_base58[5 * i + 1] as u64 * 195112
-            + raw_base58[5 * i + 2] as u64 * 3364
-            + raw_base58[5 * i + 3] as u64 * 58
-            + raw_base58[5 * i + 4] as u64;
-        i += 1;
-    }
-    let mut binary = [0u64; BINARY_SZ];
-    let mut k = 0;
-    while k < BINARY_SZ {
-        let mut acc = 0u64;
-        let mut l = 0;
-        while l < INTERMEDIATE_SZ {
-            acc += intermediate[l] * dec_table[l][k] as u64;
-            l += 1;
-        }
-        binary[k] = acc;
-        k += 1;
-    }
-    let mut m = BINARY_SZ - 1;
-    while m >= 1 {
-        binary[m - 1] += binary[m] >> 32;
-        binary[m] &= 0xFFFFFFFF;
-        m -= 1;
-    }
-    if binary[0] > 0xFFFFFFFF {
-        return Err(DecodeError::LargestTermTooHigh);
-    }
-    Ok(binary)
-}
-
-/* Contains the unique values less than 2^32 such that:
-58^(5*(8-j)) = sum_k table[j][k]*2^(32*(7-k)) */
-const DEC_TABLE_32: [[u32; BINARY_SZ_32]; INTERMEDIATE_SZ_32] = [
-    [
-        1277, 2650397687, 3801011509, 2074386530, 3248244966, 687255411, 2959155456, 0,
-    ],
-    [
-        0, 8360, 1184754854, 3047609191, 3418394749, 132556120, 1199103528, 0,
-    ],
-    [
-        0, 0, 54706, 2996985344, 1834629191, 3964963911, 485140318, 1073741824,
-    ],
-    [
-        0, 0, 0, 357981, 1476998812, 3337178590, 1483338760, 4194304000,
-    ],
-    [0, 0, 0, 0, 2342503, 3052466824, 2595180627, 17825792],
-    [0, 0, 0, 0, 0, 15328518, 1933902296, 4063920128],
-    [0, 0, 0, 0, 0, 0, 100304420, 3355157504],
-    [0, 0, 0, 0, 0, 0, 0, 656356768],
-    [0, 0, 0, 0, 0, 0, 0, 1],
-];
-
-const DEC_TABLE_64: [[u32; BINARY_SZ_64]; INTERMEDIATE_SZ_64] = [
-    [
-        249448, 3719864065, 173911550, 4021557284, 3115810883, 2498525019, 1035889824, 627529458,
-        3840888383, 3728167192, 2901437456, 3863405776, 1540739182, 1570766848, 0, 0,
-    ],
-    [
-        0, 1632305, 1882780341, 4128706713, 1023671068, 2618421812, 2005415586, 1062993857,
-        3577221846, 3960476767, 1695615427, 2597060712, 669472826, 104923136, 0, 0,
-    ],
-    [
-        0, 0, 10681231, 1422956801, 2406345166, 4058671871, 2143913881, 4169135587, 2414104418,
-        2549553452, 997594232, 713340517, 2290070198, 1103833088, 0, 0,
-    ],
-    [
-        0, 0, 0, 69894212, 1038812943, 1785020643, 1285619000, 2301468615, 3492037905, 314610629,
-        2761740102, 3410618104, 1699516363, 910779968, 0, 0,
-    ],
-    [
-        0, 0, 0, 0, 457363084, 927569770, 3976106370, 1389513021, 2107865525, 3716679421,
-        1828091393, 2088408376, 439156799, 2579227194, 0, 0,
-    ],
-    [
-        0, 0, 0, 0, 0, 2992822783, 383623235, 3862831115, 112778334, 339767049, 1447250220,
-        486575164, 3495303162, 2209946163, 268435456, 0,
-    ],
-    [
-        0, 0, 0, 0, 0, 4, 2404108010, 2962826229, 3998086794, 1893006839, 2266258239, 1429430446,
-        307953032, 2361423716, 176160768, 0,
-    ],
-    [
-        0, 0, 0, 0, 0, 0, 29, 3596590989, 3044036677, 1332209423, 1014420882, 868688145,
-        4264082837, 3688771808, 2485387264, 0,
-    ],
-    [
-        0, 0, 0, 0, 0, 0, 0, 195, 1054003707, 3711696540, 582574436, 3549229270, 1088536814,
-        2338440092, 1468637184, 0,
-    ],
-    [
-        0, 0, 0, 0, 0, 0, 0, 0, 1277, 2650397687, 3801011509, 2074386530, 3248244966, 687255411,
-        2959155456, 0,
-    ],
-    [
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 8360, 1184754854, 3047609191, 3418394749, 132556120, 1199103528,
-        0,
-    ],
-    [
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 54706, 2996985344, 1834629191, 3964963911, 485140318,
-        1073741824,
-    ],
-    [
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 357981, 1476998812, 3337178590, 1483338760, 4194304000,
-    ],
-    [
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2342503, 3052466824, 2595180627, 17825792,
-    ],
-    [
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15328518, 1933902296, 4063920128,
-    ],
-    [
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100304420, 3355157504,
-    ],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 656356768],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-];
-
-pub(crate) const BASE58_ENCODED_32_LEN: usize = 44; /* Computed as ceil(log_58(256^32 - 1)) */
-pub(crate) const BASE58_ENCODED_64_LEN: usize = 88; /* Computed as ceil(log_58(256^64 - 1)) */
-
 #[inline]
 pub fn decode_32<I: AsRef<[u8]>>(encoded: I, out: &mut [u8; N_32]) -> Result<(), DecodeError> {
     let as_ref = encoded.as_ref();
@@ -401,77 +165,6 @@ pub fn decode_32<I: AsRef<[u8]>>(encoded: I, out: &mut [u8; N_32]) -> Result<(),
     #[cfg(not(target_feature = "avx2"))]
     truncate_and_swap_u64s_scalar(out, &binary);
     base58_decode_after_be_convert(out, as_ref)
-}
-
-const fn decode_const<
-    const N: usize,
-    const ENCODED_LEN: usize,
-    const RAW58_SZ: usize,
-    const INTERMEDIATE_SZ: usize,
-    const BINARY_SZ: usize,
->(
-    encoded: &str,
-    dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
-) -> Result<[u8; N], DecodeError> {
-    let as_ref = encoded.as_bytes();
-    let binary_res =
-        base58_decode_before_be_convert_const::<ENCODED_LEN, RAW58_SZ, INTERMEDIATE_SZ, BINARY_SZ>(
-            as_ref, dec_table,
-        );
-    let binary = match binary_res {
-        Ok(x) => x,
-        Err(e) => return Err(e),
-    };
-    /* Convert each term to big endian for the final output */
-    let out: [u8; N] = truncate_and_swap_u64s_const(&binary);
-    match base58_decode_after_be_convert_const(&out, as_ref) {
-        Ok(()) => Ok(out),
-        Err(e) => Err(e),
-    }
-}
-
-const fn decode_const_unwrap<
-    const N: usize,
-    const ENCODED_LEN: usize,
-    const RAW58_SZ: usize,
-    const INTERMEDIATE_SZ: usize,
-    const BINARY_SZ: usize,
->(
-    encoded: &str,
-    dec_table: &[[u32; BINARY_SZ]; INTERMEDIATE_SZ],
-) -> [u8; N] {
-    match decode_const::<N, ENCODED_LEN, RAW58_SZ, INTERMEDIATE_SZ, BINARY_SZ>(encoded, dec_table) {
-        Ok(x) => x,
-        Err(e) => e.unwrap_const(),
-    }
-}
-
-pub const fn decode_32_const(encoded: &str) -> Result<[u8; N_32], DecodeError> {
-    decode_const::<N_32, BASE58_ENCODED_32_LEN, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32>(
-        encoded,
-        &DEC_TABLE_32,
-    )
-}
-
-pub const fn decode_32_const_unwrap(encoded: &str) -> [u8; N_32] {
-    decode_const_unwrap::<N_32, BASE58_ENCODED_32_LEN, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32>(
-        encoded,
-        &DEC_TABLE_32,
-    )
-}
-
-pub const fn decode_64_const(encoded: &str) -> Result<[u8; N_64], DecodeError> {
-    decode_const::<N_64, BASE58_ENCODED_64_LEN, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64>(
-        encoded,
-        &DEC_TABLE_64,
-    )
-}
-
-pub const fn decode_64_const_unwrap(encoded: &str) -> [u8; N_64] {
-    decode_const_unwrap::<N_64, BASE58_ENCODED_64_LEN, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64>(
-        encoded,
-        &DEC_TABLE_64,
-    )
 }
 
 #[inline]
@@ -553,9 +246,6 @@ mod tests {
     use core::arch::x86_64::{_mm256_shuffle_epi32, _mm256_unpacklo_epi64};
 
     use super::*;
-
-    const DECODE_32_CONST_EXAMPLE: [u8; N_32] =
-        decode_32_const_unwrap("JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFF");
 
     fn check_bad_decode_32(expected_err: DecodeError, encoded: &str) {
         let mut decoded = [0u8; 32];

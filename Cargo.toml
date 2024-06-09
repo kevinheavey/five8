@@ -1,12 +1,8 @@
-[package]
-name = "five8"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 resolver = "2"
+members = ["crates/*"]
 
-[features]
-dev-utils = []
-std = []
-
-[dev-dependencies]
-five8 = { path = ".", features = ["std"] }
+[workspace.dependencies]
+five8.path = "crates/five8"
+five8_const.path = "crates/five8_const"
+five8_core.path = "crates/five8_core"

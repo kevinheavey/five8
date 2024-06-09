@@ -1,4 +1,4 @@
-use crate::consts::{
+use five8_core::{
     BINARY_SZ_32, BINARY_SZ_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64, RAW58_SZ_32,
     RAW58_SZ_64,
 };
@@ -758,12 +758,10 @@ fn make_intermediate_array_32(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        decode::{BASE58_ENCODED_32_LEN, BASE58_ENCODED_64_LEN},
-        decode_32, decode_64,
-    };
+    use crate::{decode_32, decode_64};
     #[cfg(target_feature = "avx2")]
     use core::array::from_fn;
+    use five8_core::{BASE58_ENCODED_32_LEN, BASE58_ENCODED_64_LEN};
 
     use super::*;
 

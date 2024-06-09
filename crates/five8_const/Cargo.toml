@@ -1,0 +1,11 @@
+[package]
+name = "five8_const"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+five8_core.workspace = true
+
+[dev-dependencies]
+five8.workspace = true

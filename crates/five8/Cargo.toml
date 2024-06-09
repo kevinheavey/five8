@@ -1,0 +1,15 @@
+[package]
+name = "five8"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[features]
+dev-utils = []
+std = []
+
+[dependencies]
+five8_core.workspace = true
+
+[dev-dependencies]
+five8 = { path = ".", features = ["std"] }
