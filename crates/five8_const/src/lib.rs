@@ -225,4 +225,24 @@ mod tests {
 
     const DECODE_32_CONST_EXAMPLE: [u8; N_32] =
         decode_32_const_unwrap("JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFF");
+
+    #[test]
+    fn test_decode_const_ok() {
+        let mut expected = [255u8; 32];
+        expected[31] = 254;
+        assert_eq!(DECODE_32_CONST_EXAMPLE, expected);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_decode_const_small_buffer_panic() {
+        decode_32_const_unwrap("a3gV");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_decode_const_invalid_char_panic() {
+        let sample = "123456789abcd!efghij";
+        decode_32_const_unwrap(sample);
+    }
 }
