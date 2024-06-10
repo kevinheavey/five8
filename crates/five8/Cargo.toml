@@ -12,4 +12,6 @@ std = []
 five8_core.workspace = true
 
 [dev-dependencies]
+bs58 = "0.4.0"
 five8 = { path = ".", features = ["std"] }
+proptest = "1.4.0"
