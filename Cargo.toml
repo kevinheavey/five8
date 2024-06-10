@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+exclude = ["bench", "fuzz"]
 
 [workspace.dependencies]
 five8.path = "crates/five8"
