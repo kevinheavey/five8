@@ -760,7 +760,11 @@ fn make_intermediate_array_32(
 mod tests {
     use crate::{decode_32, decode_64};
     #[cfg(target_feature = "avx2")]
-    use core::array::from_fn;
+    use core::{
+        arch::x86_64::{__m256i, _mm256_add_epi64},
+        array::from_fn,
+        mem::transmute,
+    };
     use five8_core::{BASE58_ENCODED_32_LEN, BASE58_ENCODED_64_LEN};
 
     use super::*;
@@ -953,5 +957,16 @@ mod tests {
                 47, 46, 45, 44, 51, 50, 49, 48, 55, 54, 53, 52, 59, 58, 57, 56, 63, 62, 61, 60
             ]
         );
+    }
+
+    #[cfg(target_feature = "avx2")]
+    #[test]
+    fn test_simd_add_u64s() {
+        let nums = [u64::MAX - 1; 4];
+        let a: __m256i = unsafe { transmute(nums) };
+        let b: __m256i = unsafe { transmute([1u64; 4]) };
+        let res = unsafe { _mm256_add_epi64(a, b) };
+        let transmuted: [u64; 4] = unsafe { transmute(res) };
+        assert_eq!(transmuted, [u64::MAX; 4]);
     }
 }
