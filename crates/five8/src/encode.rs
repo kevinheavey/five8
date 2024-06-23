@@ -130,10 +130,12 @@ fn fd_ulong_store_if(p: Option<&mut u8>, v: u8) {
 }
 
 #[cfg_attr(target_feature = "avx2", repr(align(32)))]
+#[cfg_attr(feature = "dev-utils", derive(Copy, Clone))]
 #[repr(C)]
 struct Intermediate<const INTERMEDIATE_SZ_W_PADDING: usize>([u64; INTERMEDIATE_SZ_W_PADDING]);
 
 #[cfg(feature = "dev-utils")]
+#[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct IntermediatePub<const INTERMEDIATE_SZ_W_PADDING: usize>(
     Intermediate<INTERMEDIATE_SZ_W_PADDING>,
@@ -326,10 +328,24 @@ fn adjust_intermediate_array<
     }
 }
 
+#[cfg(feature = "dev-utils")]
+pub fn adjust_intermediate_array_32_pub(
+    intermediate: &mut IntermediatePub<INTERMEDIATE_SZ_W_PADDING_32>,
+) {
+    adjust_intermediate_array::<INTERMEDIATE_SZ_W_PADDING_32, INTERMEDIATE_SZ_32>(
+        &mut intermediate.0,
+    )
+}
+
 #[inline(always)]
 fn init_intermediate_array<const INTERMEDIATE_SZ_W_PADDING: usize>(
 ) -> Intermediate<INTERMEDIATE_SZ_W_PADDING> {
     Intermediate([0u64; INTERMEDIATE_SZ_W_PADDING])
+}
+
+#[cfg(feature = "dev-utils")]
+pub fn init_intermediate_array_32_pub() -> IntermediatePub<INTERMEDIATE_SZ_W_PADDING_32> {
+    IntermediatePub(Intermediate([0u64; INTERMEDIATE_SZ_W_PADDING_32]))
 }
 
 #[cfg(target_feature = "avx2")]
@@ -582,12 +598,11 @@ fn make_intermediate_array_64(
     at most 2^64/58^5, which is negligible.  With the final terms, it
     won't exceed 2^63.69, which is fine. Other terms are less than
     2^63.76, so no problems there. */
-    for i in 0..8 {
-        for j in 0..INTERMEDIATE_SZ_64 - 1 {
-            let multiplier = unsafe { *ENC_TABLE_64.get_unchecked(i).get_unchecked(j) } as u64;
-            add_binary_to_intermediate(&mut intermediate, j, binary, i, multiplier);
-        }
-    }
+    populate_intermediate_array::<
+        { INTERMEDIATE_SZ_64 - 1 },
+        INTERMEDIATE_SZ_W_PADDING_64,
+        BINARY_SZ_64,
+    >(&mut intermediate, binary, &ENC_TABLE_64);
     /* Mini-reduction */
     unsafe {
         *intermediate.0.get_unchecked_mut(15) += intermediate.0.get_unchecked(16) / R1DIV;
@@ -620,6 +635,18 @@ pub fn make_intermediate_array_64_pub(
     binary: [u32; BINARY_SZ_64],
 ) -> IntermediatePub<INTERMEDIATE_SZ_W_PADDING_64> {
     IntermediatePub(make_intermediate_array_64(binary))
+}
+
+#[cfg(feature = "dev-utils")]
+pub fn populate_intermediate_array_32_pub(
+    intermediate: &mut IntermediatePub<INTERMEDIATE_SZ_W_PADDING_32>,
+    binary: [u32; BINARY_SZ_32],
+) {
+    populate_intermediate_array::<
+        { INTERMEDIATE_SZ_32 - 1 },
+        INTERMEDIATE_SZ_W_PADDING_32,
+        BINARY_SZ_32,
+    >(&mut intermediate.0, binary, &ENC_TABLE_32);
 }
 
 #[cfg(target_feature = "avx2")]
@@ -744,16 +771,32 @@ fn make_intermediate_array_32(
     Initially, we don't require intermediate[i] < 58^5, but we do want
     to make sure the sums don't overflow. */
     let mut intermediate = init_intermediate_array::<INTERMEDIATE_SZ_W_PADDING_32>();
-    for i in 0..BINARY_SZ_32 {
-        for j in 0..INTERMEDIATE_SZ_32 - 1 {
-            let multiplier = unsafe { *ENC_TABLE_32.get_unchecked(i).get_unchecked(j) as u64 };
-            add_binary_to_intermediate(&mut intermediate, j, binary, i, multiplier);
-        }
-    }
+    populate_intermediate_array::<
+        { INTERMEDIATE_SZ_32 - 1 },
+        INTERMEDIATE_SZ_W_PADDING_32,
+        BINARY_SZ_32,
+    >(&mut intermediate, binary, &ENC_TABLE_32);
     adjust_intermediate_array::<INTERMEDIATE_SZ_W_PADDING_32, INTERMEDIATE_SZ_32>(
         &mut intermediate,
     );
     intermediate
+}
+
+fn populate_intermediate_array<
+    const INTERMEDIATE_SZ_MINUS_1: usize,
+    const INTERMEDIATE_SZ_W_PADDING: usize,
+    const BINARY_SZ: usize,
+>(
+    intermediate: &mut Intermediate<INTERMEDIATE_SZ_W_PADDING>,
+    binary: [u32; BINARY_SZ],
+    enc_table: &[[u32; INTERMEDIATE_SZ_MINUS_1]; BINARY_SZ],
+) {
+    for i in 0..8 {
+        for j in 0..INTERMEDIATE_SZ_MINUS_1 {
+            let multiplier = unsafe { *enc_table.get_unchecked(i).get_unchecked(j) as u64 };
+            add_binary_to_intermediate(intermediate, j, binary, i, multiplier);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -968,5 +1011,16 @@ mod tests {
         let res = unsafe { _mm256_add_epi64(a, b) };
         let transmuted: [u64; 4] = unsafe { transmute(res) };
         assert_eq!(transmuted, [u64::MAX; 4]);
+    }
+
+    #[cfg(target_feature = "avx2")]
+    #[test]
+    fn test_simd_add_u64s_at_i64_max() {
+        let nums = [i64::MAX as u64; 4];
+        let a: __m256i = unsafe { transmute(nums) };
+        let b: __m256i = unsafe { transmute([1u64; 4]) };
+        let res = unsafe { _mm256_add_epi64(a, b) };
+        let transmuted: [u64; 4] = unsafe { transmute(res) };
+        assert_eq!(transmuted, [i64::MAX as u64 + 1; 4]);
     }
 }

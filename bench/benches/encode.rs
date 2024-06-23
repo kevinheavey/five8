@@ -112,9 +112,36 @@ fn encode_32_breakdown(c: &mut Criterion) {
         b.iter(|| five8::make_intermediate_array_32_pub(black_box(binary)));
     });
     group.bench_function("intermediate_to_base58_32", |b| {
+        b.iter(|| five8::intermediate_to_base58_32_pub(&intermediate, in_leading_0s, &mut out));
+    });
+    group.finish();
+}
+
+fn intermediate_array_32_breakdown(c: &mut Criterion) {
+    let mut group = c.benchmark_group("intermediate_array_32_breakdown");
+    let bytes: [u8; 32] = [
+        0, 0, 10, 85, 198, 191, 71, 18, 5, 54, 6, 255, 181, 32, 227, 150, 208, 3, 157, 135, 222,
+        67, 50, 23, 237, 51, 240, 123, 34, 148, 111, 84,
+    ];
+    let binary = five8::make_binary_array_32_pub(&bytes);
+    let initialized = five8::init_intermediate_array_32_pub();
+    let mut populated = initialized;
+    five8::populate_intermediate_array_32_pub(&mut populated, binary);
+    group.bench_function("init_intermediate_array_32", |b| {
+        b.iter(|| five8::init_intermediate_array_32_pub());
+    });
+    group.bench_function("populate_intermediate_array_32", |b| {
         b.iter(|| {
-            five8::intermediate_to_base58_32_pub(&intermediate, in_leading_0s, &mut out)
+            let mut initialized_copy = initialized;
+            five8::populate_intermediate_array_32_pub(
+                black_box(&mut initialized_copy),
+                black_box(binary),
+            )
         });
+    });
+    group.bench_function("adjust_intermediate_array_32", |b| {
+        let mut populated_copy = populated;
+        b.iter(|| five8::adjust_intermediate_array_32_pub(black_box(&mut populated_copy)));
     });
     group.finish();
 }
@@ -124,6 +151,7 @@ criterion_group!(
     showcase_encode_32,
     showcase_encode_64,
     encode_64_scalar_breakdown,
-    encode_32_breakdown
+    encode_32_breakdown,
+    intermediate_array_32_breakdown
 );
 criterion_main!(benches);
