@@ -792,7 +792,7 @@ fn intermediate_to_base58_32(
         )
     }
     #[cfg(target_feature = "avx2")]
-    intermediate_to_base58_32_avx(&intermediate, in_leading_0s, out)
+    intermediate_to_base58_32_avx(intermediate, in_leading_0s, out)
 }
 
 #[inline(always)]
