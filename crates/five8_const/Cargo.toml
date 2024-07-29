@@ -10,6 +10,7 @@ readme = "README.md"
 repository.workspace = true
 categories.workspace = true
 keywords.workspace = true
+include = ["src", "Cargo.toml", "README.md"]
 
 [dependencies]
 five8_core.workspace = true
