@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 use five8_core::{
     DecodeError, BASE58_ENCODED_32_MAX_LEN, BASE58_ENCODED_64_MAX_LEN, BASE58_INVALID_CHAR,
     BASE58_INVERSE, BASE58_INVERSE_TABLE_OFFSET, BASE58_INVERSE_TABLE_SENTINEL, BINARY_SZ_32,
@@ -192,6 +193,7 @@ const fn decode_const_unwrap<
     }
 }
 
+/// Try decode into a 32-byte array.
 pub const fn decode_32_const(encoded: &str) -> Result<[u8; N_32], DecodeError> {
     decode_const::<N_32, BASE58_ENCODED_32_MAX_LEN, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32>(
         encoded,
@@ -199,6 +201,7 @@ pub const fn decode_32_const(encoded: &str) -> Result<[u8; N_32], DecodeError> {
     )
 }
 
+/// Decode into a 32-byte array. Panic on error.
 pub const fn decode_32_const_unwrap(encoded: &str) -> [u8; N_32] {
     decode_const_unwrap::<
         N_32,
@@ -209,6 +212,7 @@ pub const fn decode_32_const_unwrap(encoded: &str) -> [u8; N_32] {
     >(encoded, &DEC_TABLE_32)
 }
 
+/// Try decode into a 64-byte array.
 pub const fn decode_64_const(encoded: &str) -> Result<[u8; N_64], DecodeError> {
     decode_const::<N_64, BASE58_ENCODED_64_MAX_LEN, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64>(
         encoded,
@@ -216,6 +220,7 @@ pub const fn decode_64_const(encoded: &str) -> Result<[u8; N_64], DecodeError> {
     )
 }
 
+/// Decode into a 64-byte array. Panic on error.
 pub const fn decode_64_const_unwrap(encoded: &str) -> [u8; N_64] {
     decode_const_unwrap::<
         N_64,
