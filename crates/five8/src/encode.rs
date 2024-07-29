@@ -1,6 +1,6 @@
 use five8_core::{
-    BINARY_SZ_32, BINARY_SZ_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64, RAW58_SZ_32,
-    RAW58_SZ_64,
+    BASE58_ENCODED_32_MAX_LEN, BASE58_ENCODED_64_MAX_LEN, BINARY_SZ_32, BINARY_SZ_64,
+    INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64, RAW58_SZ_32, RAW58_SZ_64,
 };
 #[cfg(target_feature = "avx2")]
 use {
@@ -470,7 +470,11 @@ pub fn make_binary_array_64_pub(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
 }
 
 #[inline]
-pub fn encode_64(bytes: &[u8; N_64], opt_len: Option<&mut u8>, out: &mut [u8]) {
+pub fn encode_64(
+    bytes: &[u8; N_64],
+    opt_len: Option<&mut u8>,
+    out: &mut [u8; BASE58_ENCODED_64_MAX_LEN],
+) {
     let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -696,7 +700,11 @@ fn intermediate_to_base58_32_avx(
 }
 
 #[inline]
-pub fn encode_32(bytes: &[u8; N_32], opt_len: Option<&mut u8>, out: &mut [u8]) {
+pub fn encode_32(
+    bytes: &[u8; N_32],
+    opt_len: Option<&mut u8>,
+    out: &mut [u8; BASE58_ENCODED_32_MAX_LEN],
+) {
     let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
