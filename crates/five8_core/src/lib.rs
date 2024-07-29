@@ -2,8 +2,8 @@ pub const BASE58_INVERSE_TABLE_OFFSET: u8 = b'1';
 pub const BASE58_INVERSE_TABLE_SENTINEL: u8 = 1 + b'z' - BASE58_INVERSE_TABLE_OFFSET;
 
 pub const BASE58_INVALID_CHAR: u8 = 255;
-pub const BASE58_ENCODED_32_LEN: usize = 44; /* Computed as ceil(log_58(256^32 - 1)) */
-pub const BASE58_ENCODED_64_LEN: usize = 88; /* Computed as ceil(log_58(256^64 - 1)) */
+pub const BASE58_ENCODED_32_MAX_LEN: usize = 44; /* Computed as ceil(log_58(256^32 - 1)) */
+pub const BASE58_ENCODED_64_MAX_LEN: usize = 88; /* Computed as ceil(log_58(256^64 - 1)) */
 pub const INTERMEDIATE_SZ_32: usize = 9; /* Computed by ceil(log_(58^5) (256^32-1)) */
 pub const INTERMEDIATE_SZ_64: usize = 18; /* Computed by ceil(log_(58^5) (256^64-1)) */
 pub const RAW58_SZ_32: usize = INTERMEDIATE_SZ_32 * 5;
