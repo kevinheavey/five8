@@ -761,14 +761,16 @@ mod tests {
     use crate::{decode_32, decode_64};
     #[cfg(target_feature = "avx2")]
     use core::array::from_fn;
-    use five8_core::{BASE58_ENCODED_32_LEN, BASE58_ENCODED_64_LEN};
+    use five8_core::{BASE58_ENCODED_32_MAX_LEN, BASE58_ENCODED_64_MAX_LEN};
+    use prop::array::uniform32;
+    use proptest::prelude::*;
 
     use super::*;
 
     fn encode_32_to_string(
         bytes: &[u8; 32],
         len: &mut u8,
-        buf: &mut [u8; BASE58_ENCODED_32_LEN],
+        buf: &mut [u8; BASE58_ENCODED_32_MAX_LEN],
     ) -> String {
         encode_32(bytes, Some(len), buf);
         buf[..*len as usize].iter().map(|c| *c as char).collect()
@@ -777,7 +779,7 @@ mod tests {
     fn check_encode_decode_32(
         bytes: &[u8; 32],
         len: &mut u8,
-        buf: &mut [u8; BASE58_ENCODED_32_LEN],
+        buf: &mut [u8; BASE58_ENCODED_32_MAX_LEN],
         expected_len: u8,
         encoded: &str,
     ) {
@@ -791,7 +793,7 @@ mod tests {
     fn check_encode_decode_64(
         bytes: &[u8; 64],
         len: &mut u8,
-        buf: &mut [u8; BASE58_ENCODED_64_LEN],
+        buf: &mut [u8; BASE58_ENCODED_64_MAX_LEN],
         expected_len: u8,
         encoded: &str,
     ) {
@@ -805,7 +807,7 @@ mod tests {
     fn encode_64_to_string(
         bytes: &[u8; 64],
         len: &mut u8,
-        buf: &mut [u8; BASE58_ENCODED_64_LEN],
+        buf: &mut [u8; BASE58_ENCODED_64_MAX_LEN],
     ) -> String {
         encode_64(&bytes, Some(len), buf);
         buf[..*len as usize].iter().map(|c| *c as char).collect()
@@ -813,7 +815,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_32() {
-        let mut buf = [0u8; BASE58_ENCODED_32_LEN];
+        let mut buf = [0u8; BASE58_ENCODED_32_MAX_LEN];
         let mut len = 0u8;
         let mut bytes = [0u8; 32];
         check_encode_decode_32(
@@ -880,7 +882,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_64() {
-        let mut buf = [0u8; BASE58_ENCODED_64_LEN];
+        let mut buf = [0u8; BASE58_ENCODED_64_MAX_LEN];
         let mut len = 0u8;
         let mut bytes = [0u8; 64];
         check_encode_decode_64(
@@ -953,5 +955,30 @@ mod tests {
                 47, 46, 45, 44, 51, 50, 49, 48, 55, 54, 53, 52, 59, 58, 57, 56, 63, 62, 61, 60
             ]
         );
+    }
+
+    proptest! {
+        #[test]
+        fn proptest_encode_32(key in uniform32(0u8..)) {
+            let bs58_res = bs58::encode(key).into_vec();
+            let mut out = [0u8; BASE58_ENCODED_32_MAX_LEN];
+            let mut len = 0u8;
+            encode_32(&key, Some(&mut len), &mut out);
+            assert_eq!(bs58_res, out[..len as usize].to_vec());
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn proptest_encode_64(first_half in uniform32(0u8..), second_half in uniform32(0u8..)) {
+            let mut combined = [0u8; 64];
+            combined[..32].copy_from_slice(&first_half);
+            combined[32..].copy_from_slice(&second_half);
+            let bs58_res = bs58::encode(combined).into_vec();
+            let mut out = [0u8; BASE58_ENCODED_64_MAX_LEN];
+            let mut len = 0u8;
+            encode_64(&combined, Some(&mut len), &mut out);
+            assert_eq!(bs58_res, out[..len as usize].to_vec());
+        }
     }
 }

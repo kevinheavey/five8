@@ -4,7 +4,7 @@ use core::mem::transmute;
 use core::array::from_fn;
 
 use five8_core::{
-    DecodeError, BASE58_ENCODED_32_LEN, BASE58_ENCODED_64_LEN, BASE58_INVALID_CHAR, BASE58_INVERSE,
+    DecodeError, BASE58_ENCODED_32_MAX_LEN, BASE58_ENCODED_64_MAX_LEN, BASE58_INVALID_CHAR, BASE58_INVERSE,
     BASE58_INVERSE_TABLE_OFFSET, BASE58_INVERSE_TABLE_SENTINEL, BINARY_SZ_32, BINARY_SZ_64,
     DEC_TABLE_32, DEC_TABLE_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64, RAW58_SZ_32,
     RAW58_SZ_64,
@@ -154,7 +154,7 @@ fn base58_decode_before_be_convert<
 pub fn decode_32<I: AsRef<[u8]>>(encoded: I, out: &mut [u8; N_32]) -> Result<(), DecodeError> {
     let as_ref = encoded.as_ref();
     let binary = base58_decode_before_be_convert::<
-        BASE58_ENCODED_32_LEN,
+        BASE58_ENCODED_32_MAX_LEN,
         RAW58_SZ_32,
         INTERMEDIATE_SZ_32,
         BINARY_SZ_32,
@@ -171,7 +171,7 @@ pub fn decode_32<I: AsRef<[u8]>>(encoded: I, out: &mut [u8; N_32]) -> Result<(),
 pub fn decode_64<I: AsRef<[u8]>>(encoded: I, out: &mut [u8; N_64]) -> Result<(), DecodeError> {
     let as_ref = encoded.as_ref();
     let binary = base58_decode_before_be_convert::<
-        BASE58_ENCODED_64_LEN,
+        BASE58_ENCODED_64_MAX_LEN,
         RAW58_SZ_64,
         INTERMEDIATE_SZ_64,
         BINARY_SZ_64,
@@ -244,6 +244,8 @@ fn truncate_and_swap_u64s_registers<
 mod tests {
     #[cfg(target_feature = "avx2")]
     use core::arch::x86_64::{_mm256_shuffle_epi32, _mm256_unpacklo_epi64};
+    use prop::array::uniform32;
+    use proptest::prelude::*;
 
     use super::*;
 
@@ -431,5 +433,34 @@ mod tests {
         let unpacked = unsafe { _mm256_unpacklo_epi64(res, res2) };
         let out3: [u32; 8] = unsafe { core::mem::transmute(unpacked) };
         println!("out3: {out3:?}");
+    }
+
+    proptest! {
+        #[test]
+        fn proptest_decode_32(key in uniform32(0u8..)) {
+            let encoded = bs58::encode(key).into_vec();
+            let bs58_res = bs58::decode(&encoded).into_vec().unwrap();
+            let const_res = five8_const::decode_32_const_unwrap(&String::from_utf8(encoded.clone()).unwrap());
+            let mut out = [0u8; 32];
+            decode_32(&encoded, &mut out).unwrap();
+            assert_eq!(bs58_res, out.to_vec());
+            assert_eq!(const_res, out);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn proptest_decode_64(first_half in uniform32(0u8..), second_half in uniform32(0u8..)) {
+            let mut combined = [0u8; 64];
+            combined[..32].copy_from_slice(&first_half);
+            combined[32..].copy_from_slice(&second_half);
+            let encoded = bs58::encode(combined).into_vec();
+            let bs58_res = bs58::decode(&encoded).into_vec().unwrap();
+            let const_res = five8_const::decode_64_const_unwrap(&String::from_utf8(encoded.clone()).unwrap());
+            let mut out = [0u8; 64];
+            decode_64(&encoded, &mut out).unwrap();
+            assert_eq!(bs58_res, out.to_vec());
+            assert_eq!(const_res, out);
+        }
     }
 }
