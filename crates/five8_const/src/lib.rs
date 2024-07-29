@@ -5,7 +5,7 @@ use five8_core::{
     RAW58_SZ_64,
 };
 
-pub const fn unwrap_const(err: DecodeError) -> ! {
+const fn unwrap_const(err: DecodeError) -> ! {
     match err {
         DecodeError::InvalidChar(_) => panic!("Illegal base58 char"),
         DecodeError::TooLong => panic!("Base58 string too long"),
