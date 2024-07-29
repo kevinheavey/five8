@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Clippy Lint
-        run:  RUSTFLAGS="-D warnings" cargo clippy --locked --tests
+        run:  RUSTFLAGS="-D warnings" cargo clippy --tests
 
   clippy-native-cpu:
     runs-on: ubuntu-latest
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Clippy Lint
-        run:  RUSTFLAGS="-D warnings -C target-cpu=native" cargo clippy --locked --tests
+        run:  RUSTFLAGS="-D warnings -C target-cpu=native" cargo clippy --tests
 
   clippy-all-features:
     runs-on: ubuntu-latest
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Clippy Lint
-        run:  RUSTFLAGS="-D warnings" cargo clippy --all-features --locked --tests
+        run:  RUSTFLAGS="-D warnings" cargo clippy --all-features --tests
 
   tests:
     runs-on: ubuntu-latest
