@@ -792,7 +792,7 @@ fn intermediate_to_base58_32(
         )
     }
     #[cfg(target_feature = "avx2")]
-    intermediate_to_base58_32_avx(&intermediate, in_leading_0s, out)
+    intermediate_to_base58_32_avx(intermediate, in_leading_0s, out)
 }
 
 #[inline(always)]
@@ -822,7 +822,9 @@ mod tests {
     #[cfg(target_feature = "avx2")]
     use core::array::from_fn;
     use five8_core::{BASE58_ENCODED_32_MAX_LEN, BASE58_ENCODED_64_MAX_LEN};
+    #[cfg(not(miri))]
     use prop::array::uniform32;
+    #[cfg(not(miri))]
     use proptest::prelude::*;
 
     use super::*;
@@ -843,7 +845,7 @@ mod tests {
         expected_len: u8,
         encoded: &str,
     ) {
-        assert_eq!(&encode_32_to_string(&bytes, len, buf), encoded);
+        assert_eq!(&encode_32_to_string(bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
         let mut decoded = [0u8; 32];
         decode_32(encoded.as_bytes(), &mut decoded).unwrap();
@@ -857,7 +859,7 @@ mod tests {
         expected_len: u8,
         encoded: &str,
     ) {
-        assert_eq!(&encode_64_to_string(&bytes, len, buf), encoded);
+        assert_eq!(&encode_64_to_string(bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
         let mut decoded = [0u8; 64];
         decode_64(encoded.as_bytes(), &mut decoded).unwrap();
@@ -869,7 +871,7 @@ mod tests {
         len: &mut u8,
         buf: &mut [u8; BASE58_ENCODED_64_MAX_LEN],
     ) -> String {
-        encode_64(&bytes, Some(len), buf);
+        encode_64(bytes, Some(len), buf);
         buf[..*len as usize].iter().map(|c| *c as char).collect()
     }
 
@@ -1017,6 +1019,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(miri))]
     proptest! {
         #[test]
         fn proptest_encode_32(key in uniform32(0u8..)) {
@@ -1028,6 +1031,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(miri))]
     proptest! {
         #[test]
         fn proptest_encode_64(first_half in uniform32(0u8..), second_half in uniform32(0u8..)) {

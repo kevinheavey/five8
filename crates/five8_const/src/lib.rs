@@ -139,11 +139,19 @@ const fn truncate_and_swap_u64s_const<const BINARY_SZ: usize, const N: usize>(
         // 4 5 6 7 12 13 14 15 20 21 22 23 etc
         let binary_u8_idx = i * 8;
         let out_idx = i * 4;
+        #[cfg(target_endian = "little")]
         unsafe {
             out[out_idx] = *binary_u8.add(binary_u8_idx + 3);
             out[out_idx + 1] = *binary_u8.add(binary_u8_idx + 2);
             out[out_idx + 2] = *binary_u8.add(binary_u8_idx + 1);
             out[out_idx + 3] = *binary_u8.add(binary_u8_idx);
+        }
+        #[cfg(target_endian = "big")]
+        unsafe {
+            out[out_idx] = *binary_u8.add(binary_u8_idx + 4);
+            out[out_idx + 1] = *binary_u8.add(binary_u8_idx + 5);
+            out[out_idx + 2] = *binary_u8.add(binary_u8_idx + 6);
+            out[out_idx + 3] = *binary_u8.add(binary_u8_idx + 7);
         }
         i += 1
     }

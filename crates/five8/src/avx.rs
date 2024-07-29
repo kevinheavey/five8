@@ -423,14 +423,14 @@ mod tests {
         for i in 0..90 {
             in_.0[16 * (i / 10) + (i % 10)] = i as u8 + 1;
         }
-        let in_ptr = in_.0.as_ptr() as *const u8;
+        let in_ptr = in_.0.as_ptr();
         let a = wuc_ld(in_ptr);
         let b = wuc_ld(unsafe { in_ptr.offset(32) });
         let c = wuc_ld(unsafe { in_ptr.offset(64) });
         let d = wuc_ld(unsafe { in_ptr.offset(96) });
         let e = wuc_ld(unsafe { in_ptr.offset(128) });
         let (out0, out1, out2) = ten_per_slot_down_64(a, b, c, d, e);
-        let out_ptr = out.0.as_mut_ptr() as *mut u8;
+        let out_ptr = out.0.as_mut_ptr();
         wuc_st(out_ptr, out0);
         wuc_st(unsafe { out_ptr.offset(32) }, out1);
         wuc_st(unsafe { out_ptr.offset(64) }, out2);

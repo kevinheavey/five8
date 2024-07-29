@@ -1,3 +1,4 @@
+#![allow(clippy::missing_transmute_annotations)]
 #[cfg(target_feature = "avx2")]
 use core::mem::transmute;
 
@@ -277,7 +278,9 @@ fn truncate_and_swap_u64s_registers<
 mod tests {
     #[cfg(target_feature = "avx2")]
     use core::arch::x86_64::{_mm256_shuffle_epi32, _mm256_unpacklo_epi64};
+    #[cfg(not(miri))]
     use prop::array::uniform32;
+    #[cfg(not(miri))]
     use proptest::prelude::*;
 
     use super::*;
@@ -355,7 +358,7 @@ mod tests {
             49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 0, 1, 0, 0, 0, 0, 0, 127,
         ];
         let mut out = [0u8; 32];
-        let err = decode_32(&encoded, &mut out).unwrap_err();
+        let err = decode_32(encoded, &mut out).unwrap_err();
         assert_eq!(err, DecodeError::InvalidChar(0));
     }
 
@@ -468,6 +471,7 @@ mod tests {
         println!("out3: {out3:?}");
     }
 
+    #[cfg(not(miri))]
     proptest! {
         #[test]
         fn proptest_decode_32(key in uniform32(0u8..)) {
@@ -481,6 +485,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(miri))]
     proptest! {
         #[test]
         fn proptest_decode_64(first_half in uniform32(0u8..), second_half in uniform32(0u8..)) {
