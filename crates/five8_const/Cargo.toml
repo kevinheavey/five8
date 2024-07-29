@@ -3,9 +3,10 @@ name = "five8_const"
 version = "0.1.0"
 edition = "2021"
 resolver = "2"
+description = "Compile-time base58 decoding."
+license = "MIT"
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 five8_core.workspace = true
-
-[dev-dependencies]
-five8.workspace = true

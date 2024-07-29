@@ -1,8 +1,8 @@
 use five8_core::{
-    DecodeError, BASE58_ENCODED_32_MAX_LEN, BASE58_ENCODED_64_MAX_LEN, BASE58_INVALID_CHAR, BASE58_INVERSE,
-    BASE58_INVERSE_TABLE_OFFSET, BASE58_INVERSE_TABLE_SENTINEL, BINARY_SZ_32, BINARY_SZ_64,
-    DEC_TABLE_32, DEC_TABLE_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64, RAW58_SZ_32,
-    RAW58_SZ_64,
+    DecodeError, BASE58_ENCODED_32_MAX_LEN, BASE58_ENCODED_64_MAX_LEN, BASE58_INVALID_CHAR,
+    BASE58_INVERSE, BASE58_INVERSE_TABLE_OFFSET, BASE58_INVERSE_TABLE_SENTINEL, BINARY_SZ_32,
+    BINARY_SZ_64, DEC_TABLE_32, DEC_TABLE_64, INTERMEDIATE_SZ_32, INTERMEDIATE_SZ_64, N_32, N_64,
+    RAW58_SZ_32, RAW58_SZ_64,
 };
 
 const fn unwrap_const(err: DecodeError) -> ! {
@@ -118,7 +118,8 @@ const fn base58_decode_after_be_convert_const<const N: usize>(
     }
     if leading_zero_cnt as usize > N {
         return Err(DecodeError::OutputTooLong);
-    } else if encoded[leading_zero_cnt as usize] == b'1' {
+    }
+    if encoded[leading_zero_cnt as usize] == b'1' {
         return Err(DecodeError::OutputTooLong);
     }
     Ok(())
@@ -199,10 +200,13 @@ pub const fn decode_32_const(encoded: &str) -> Result<[u8; N_32], DecodeError> {
 }
 
 pub const fn decode_32_const_unwrap(encoded: &str) -> [u8; N_32] {
-    decode_const_unwrap::<N_32, BASE58_ENCODED_32_MAX_LEN, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32>(
-        encoded,
-        &DEC_TABLE_32,
-    )
+    decode_const_unwrap::<
+        N_32,
+        BASE58_ENCODED_32_MAX_LEN,
+        RAW58_SZ_32,
+        INTERMEDIATE_SZ_32,
+        BINARY_SZ_32,
+    >(encoded, &DEC_TABLE_32)
 }
 
 pub const fn decode_64_const(encoded: &str) -> Result<[u8; N_64], DecodeError> {
@@ -213,10 +217,13 @@ pub const fn decode_64_const(encoded: &str) -> Result<[u8; N_64], DecodeError> {
 }
 
 pub const fn decode_64_const_unwrap(encoded: &str) -> [u8; N_64] {
-    decode_const_unwrap::<N_64, BASE58_ENCODED_64_MAX_LEN, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64>(
-        encoded,
-        &DEC_TABLE_64,
-    )
+    decode_const_unwrap::<
+        N_64,
+        BASE58_ENCODED_64_MAX_LEN,
+        RAW58_SZ_64,
+        INTERMEDIATE_SZ_64,
+        BINARY_SZ_64,
+    >(encoded, &DEC_TABLE_64)
 }
 
 #[cfg(test)]

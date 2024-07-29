@@ -150,6 +150,22 @@ fn base58_decode_before_be_convert<
     Ok(binary)
 }
 
+/// Decode base58 data onto a 32-byte array.
+///
+/// # Examples
+///
+/// ```
+/// let bytes = b"2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG";
+/// let mut out = [0u8; 32];
+/// five8::decode_32(bytes, &mut out).unwrap();
+/// assert_eq!(
+///     out,
+///     [
+///         24, 243, 6, 223, 230, 153, 210, 8, 92, 137, 123, 67, 164, 197, 79, 196, 125, 43,
+///         183, 85, 103, 91, 232, 167, 73, 131, 104, 131, 0, 101, 214, 231
+///     ]
+/// );
+/// ```
 #[inline]
 pub fn decode_32<I: AsRef<[u8]>>(encoded: I, out: &mut [u8; N_32]) -> Result<(), DecodeError> {
     let as_ref = encoded.as_ref();
@@ -167,6 +183,23 @@ pub fn decode_32<I: AsRef<[u8]>>(encoded: I, out: &mut [u8; N_32]) -> Result<(),
     base58_decode_after_be_convert(out, as_ref)
 }
 
+/// Decode base58 data onto a 64-byte array.
+///
+/// # Examples
+///
+/// ```
+/// let bytes = b"11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df";
+/// let mut out = [0u8; 64];
+/// five8::decode_64(bytes, &mut out).unwrap();
+/// assert_eq!(
+///     out,
+///     [
+///         0, 0, 10, 85, 198, 191, 71, 18, 5, 54, 6, 255, 181, 32, 227, 150, 208, 3, 157, 135, 222, 67, 50,
+///         23, 237, 51, 240, 123, 34, 148, 111, 84, 98, 162, 236, 133, 31, 93, 185, 142, 108, 41, 191, 1, 138,
+///         6, 192, 0, 46, 93, 25, 65, 243, 223, 225, 225, 85, 55, 82, 251, 109, 132, 165, 2
+///     ]
+/// );
+/// ```
 #[inline]
 pub fn decode_64<I: AsRef<[u8]>>(encoded: I, out: &mut [u8; N_64]) -> Result<(), DecodeError> {
     let as_ref = encoded.as_ref();

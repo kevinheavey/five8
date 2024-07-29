@@ -3,9 +3,14 @@ name = "five8"
 version = "0.1.0"
 edition = "2021"
 resolver = "2"
+description = "Fast base58 encoding and decoding for 32-byte and 64-byte arrays."
+license = "MIT"
+readme = "README.md"
+homepage.workspace = true
+repository.workspace = true
 
 [features]
-dev-utils = []
+dev-utils = [] # internal use only
 std = []
 
 [dependencies]

@@ -469,6 +469,35 @@ pub fn make_binary_array_64_pub(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
     make_binary_array_64(bytes)
 }
 
+/// Encode a 64-byte array.
+///
+/// Mutates the provided `out` array and, if provided, the `opt_len`
+/// which indicates how many bytes of the `out` array were actually written to.
+/// The remaining bytes are unchanged, hence the result we care about after
+/// calling the function is `out[..len as usize]`.
+///
+/// # Examples
+/// ```
+/// let mut buf = [0u8; 88];
+/// let mut len = 0u8;
+/// let bytes = &[
+///     0, 0, 10, 85, 198, 191, 71, 18, 5, 54, 6, 255, 181, 32, 227, 150, 208, 3, 157, 135, 222,
+///     67, 50, 23, 237, 51, 240, 123, 34, 148, 111, 84, 98, 162, 236, 133, 31, 93, 185, 142, 108,
+///     41, 191, 1, 138, 6, 192, 0, 46, 93, 25, 65, 243, 223, 225, 225, 85, 55, 82, 251, 109, 132,
+///     165, 2,
+/// ];
+/// five8::encode_64(bytes, Some(&mut len), &mut buf);
+/// assert_eq!(
+///     &buf[..len as usize],
+///     [
+///         49, 49, 99, 103, 84, 72, 52, 68, 53, 101, 56, 83, 51, 115, 110, 68, 52, 52, 52, 87, 98,
+///         98, 71, 114, 107, 101, 112, 106, 84, 118, 87, 77, 106, 50, 106, 107, 109, 67, 71, 74, 116,
+///         103, 110, 51, 72, 55, 113, 114, 80, 98, 49, 66, 110, 119, 97, 112, 120, 112, 98, 71, 100,
+///         82, 116, 72, 81, 104, 57, 116, 57, 87, 98, 110, 57, 116, 54, 90, 68, 71, 72, 122, 87, 112,
+///         76, 52, 100, 102
+///     ]
+/// );
+/// assert_eq!(len, 86);
 #[inline]
 pub fn encode_64(
     bytes: &[u8; N_64],
@@ -699,6 +728,32 @@ fn intermediate_to_base58_32_avx(
     skip
 }
 
+/// Encode a 32-byte array.
+///
+/// Mutates the provided `out` array and, if provided, the `opt_len`
+/// which indicates how many bytes of the `out` array were actually written to.
+/// The remaining bytes are unchanged, hence the result we care about after
+/// calling the function is `out[..len as usize]``
+///
+/// # Examples
+/// ```
+/// let mut buf = [0u8; 44];
+/// let mut len = 0u8;
+/// let bytes = &[
+///     24, 243, 6, 223, 230, 153, 210, 8, 92, 137, 123, 67, 164, 197, 79, 196, 125, 43, 183,
+///     85, 103, 91, 232, 167, 73, 131, 104, 131, 0, 101, 214, 231,
+/// ];
+/// five8::encode_32(bytes, Some(&mut len), &mut buf);
+/// assert_eq!(
+///     &buf[..len as usize],
+///     [
+///         50, 103, 80, 105, 104, 85, 84, 106, 116, 51, 70, 74, 113, 102, 49, 86, 112, 105,
+///         100, 103, 114, 89, 53, 99, 90, 54, 80, 117, 121, 77, 99, 99, 71, 86, 119, 81, 72,
+///         82, 102, 106, 77, 80, 90, 71
+///     ]
+/// );
+/// assert_eq!(len, 44);
+/// ```
 #[inline]
 pub fn encode_32(
     bytes: &[u8; N_32],
@@ -728,19 +783,16 @@ fn intermediate_to_base58_32(
     in_leading_0s: u64,
     out: &mut [u8],
 ) -> usize {
-    let skip = {
-        #[cfg(not(target_feature = "avx2"))]
-        {
-            intermediate_to_base58_scalar::<
-                INTERMEDIATE_SZ_W_PADDING_32,
-                RAW58_SZ_32,
-                INTERMEDIATE_SZ_32,
-            >(&intermediate, in_leading_0s, out)
-        }
-        #[cfg(target_feature = "avx2")]
-        intermediate_to_base58_32_avx(&intermediate, in_leading_0s, out)
-    };
-    skip
+    #[cfg(not(target_feature = "avx2"))]
+    {
+        intermediate_to_base58_scalar::<INTERMEDIATE_SZ_W_PADDING_32, RAW58_SZ_32, INTERMEDIATE_SZ_32>(
+            intermediate,
+            in_leading_0s,
+            out,
+        )
+    }
+    #[cfg(target_feature = "avx2")]
+    intermediate_to_base58_32_avx(&intermediate, in_leading_0s, out)
 }
 
 #[inline(always)]

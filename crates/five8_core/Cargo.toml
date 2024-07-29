@@ -3,6 +3,11 @@ name = "five8_core"
 version = "0.1.0"
 edition = "2021"
 resolver = "2"
+license = "MIT"
+description = "Core utilities for the five8 crates."
+homepage.workspace = true
+readme = "README.md"
+repository.workspace = true
 
 [features]
 std = []
