@@ -277,7 +277,9 @@ fn truncate_and_swap_u64s_registers<
 mod tests {
     #[cfg(target_feature = "avx2")]
     use core::arch::x86_64::{_mm256_shuffle_epi32, _mm256_unpacklo_epi64};
+    #[cfg(not(miri))]
     use prop::array::uniform32;
+    #[cfg(not(miri))]
     use proptest::prelude::*;
 
     use super::*;
@@ -468,6 +470,7 @@ mod tests {
         println!("out3: {out3:?}");
     }
 
+    #[cfg(not(miri))]
     proptest! {
         #[test]
         fn proptest_decode_32(key in uniform32(0u8..)) {
@@ -481,6 +484,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(miri))]
     proptest! {
         #[test]
         fn proptest_decode_64(first_half in uniform32(0u8..), second_half in uniform32(0u8..)) {

@@ -822,7 +822,9 @@ mod tests {
     #[cfg(target_feature = "avx2")]
     use core::array::from_fn;
     use five8_core::{BASE58_ENCODED_32_MAX_LEN, BASE58_ENCODED_64_MAX_LEN};
+    #[cfg(not(miri))]
     use prop::array::uniform32;
+    #[cfg(not(miri))]
     use proptest::prelude::*;
 
     use super::*;
@@ -1017,6 +1019,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(miri))]
     proptest! {
         #[test]
         fn proptest_encode_32(key in uniform32(0u8..)) {
@@ -1028,6 +1031,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(miri))]
     proptest! {
         #[test]
         fn proptest_encode_64(first_half in uniform32(0u8..), second_half in uniform32(0u8..)) {
