@@ -357,7 +357,7 @@ mod tests {
             49, 49, 49, 49, 49, 49, 49, 49, 49, 49, 0, 1, 0, 0, 0, 0, 0, 127,
         ];
         let mut out = [0u8; 32];
-        let err = decode_32(&encoded, &mut out).unwrap_err();
+        let err = decode_32(encoded, &mut out).unwrap_err();
         assert_eq!(err, DecodeError::InvalidChar(0));
     }
 

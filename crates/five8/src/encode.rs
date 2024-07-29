@@ -845,7 +845,7 @@ mod tests {
         expected_len: u8,
         encoded: &str,
     ) {
-        assert_eq!(&encode_32_to_string(&bytes, len, buf), encoded);
+        assert_eq!(&encode_32_to_string(bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
         let mut decoded = [0u8; 32];
         decode_32(encoded.as_bytes(), &mut decoded).unwrap();
@@ -859,7 +859,7 @@ mod tests {
         expected_len: u8,
         encoded: &str,
     ) {
-        assert_eq!(&encode_64_to_string(&bytes, len, buf), encoded);
+        assert_eq!(&encode_64_to_string(bytes, len, buf), encoded);
         assert_eq!(*len, expected_len);
         let mut decoded = [0u8; 64];
         decode_64(encoded.as_bytes(), &mut decoded).unwrap();
@@ -871,7 +871,7 @@ mod tests {
         len: &mut u8,
         buf: &mut [u8; BASE58_ENCODED_64_MAX_LEN],
     ) -> String {
-        encode_64(&bytes, Some(len), buf);
+        encode_64(bytes, Some(len), buf);
         buf[..*len as usize].iter().map(|c| *c as char).collect()
     }
 
