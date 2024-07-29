@@ -20,7 +20,7 @@ fn showcase_encode_32(c: &mut Criterion) {
     group.bench_function("encode_five8", |b| {
         b.iter(|| {
             five8::encode_32(
-                black_box(&bytes),
+                black_box(bytes),
                 black_box(Some(&mut len)),
                 black_box(&mut buf),
             )
@@ -52,7 +52,7 @@ fn showcase_encode_64(c: &mut Criterion) {
     group.bench_function("encode_five8", |b| {
         b.iter(|| {
             five8::encode_64(
-                black_box(&bytes),
+                black_box(bytes),
                 black_box(Some(&mut len)),
                 black_box(&mut buf),
             )
