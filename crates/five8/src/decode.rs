@@ -1,3 +1,4 @@
+#![allow(clippy::missing_transmute_annotations)]
 #[cfg(target_feature = "avx2")]
 use core::mem::transmute;
 
