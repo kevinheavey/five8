@@ -6,6 +6,7 @@ resolver = "2"
 description = "Compile-time base58 decoding."
 license = "MIT"
 homepage.workspace = true
+readme = "README.md"
 repository.workspace = true
 
 [dependencies]
