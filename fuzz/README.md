@@ -1,1 +1,0 @@
-Fuzzing code is ported from https://github.com/Lou-Kamades/fd_bs58
