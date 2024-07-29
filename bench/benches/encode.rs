@@ -7,7 +7,7 @@ fn showcase_encode_32(c: &mut Criterion) {
         103, 91, 232, 167, 73, 131, 104, 131, 0, 101, 214, 231,
     ];
     let string = "2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG";
-    let mut buf = [0u8; 45];
+    let mut buf = [0u8; 44];
     let mut len = 0u8;
 
     group.bench_function("encode_bs58_noalloc", |b| {
@@ -39,7 +39,7 @@ fn showcase_encode_64(c: &mut Criterion) {
     ];
     let string =
         "11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df";
-    let mut buf = [0u8; 89];
+    let mut buf = [0u8; 88];
     let mut len = 0u8;
 
     group.bench_function("encode_bs58_noalloc", |b| {
