@@ -194,7 +194,7 @@ const fn decode_const_unwrap<
 }
 
 /// Try decode into a 32-byte array.
-pub const fn decode_32_const(encoded: &str) -> Result<[u8; N_32], DecodeError> {
+pub const fn try_decode_32_const(encoded: &str) -> Result<[u8; N_32], DecodeError> {
     decode_const::<N_32, BASE58_ENCODED_32_MAX_LEN, RAW58_SZ_32, INTERMEDIATE_SZ_32, BINARY_SZ_32>(
         encoded,
         &DEC_TABLE_32,
@@ -202,7 +202,7 @@ pub const fn decode_32_const(encoded: &str) -> Result<[u8; N_32], DecodeError> {
 }
 
 /// Decode into a 32-byte array. Panic on error.
-pub const fn decode_32_const_unwrap(encoded: &str) -> [u8; N_32] {
+pub const fn decode_32_const(encoded: &str) -> [u8; N_32] {
     decode_const_unwrap::<
         N_32,
         BASE58_ENCODED_32_MAX_LEN,
@@ -213,7 +213,7 @@ pub const fn decode_32_const_unwrap(encoded: &str) -> [u8; N_32] {
 }
 
 /// Try decode into a 64-byte array.
-pub const fn decode_64_const(encoded: &str) -> Result<[u8; N_64], DecodeError> {
+pub const fn try_decode_64_const(encoded: &str) -> Result<[u8; N_64], DecodeError> {
     decode_const::<N_64, BASE58_ENCODED_64_MAX_LEN, RAW58_SZ_64, INTERMEDIATE_SZ_64, BINARY_SZ_64>(
         encoded,
         &DEC_TABLE_64,
@@ -221,7 +221,7 @@ pub const fn decode_64_const(encoded: &str) -> Result<[u8; N_64], DecodeError> {
 }
 
 /// Decode into a 64-byte array. Panic on error.
-pub const fn decode_64_const_unwrap(encoded: &str) -> [u8; N_64] {
+pub const fn decode_64_const(encoded: &str) -> [u8; N_64] {
     decode_const_unwrap::<
         N_64,
         BASE58_ENCODED_64_MAX_LEN,
@@ -236,7 +236,7 @@ mod tests {
     use super::*;
 
     const DECODE_32_CONST_EXAMPLE: [u8; N_32] =
-        decode_32_const_unwrap("JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFF");
+        decode_32_const("JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFF");
 
     #[test]
     fn test_decode_const_ok() {
@@ -248,13 +248,13 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_decode_const_small_buffer_panic() {
-        decode_32_const_unwrap("a3gV");
+        decode_32_const("a3gV");
     }
 
     #[test]
     #[should_panic]
     fn test_decode_const_invalid_char_panic() {
         let sample = "123456789abcd!efghij";
-        decode_32_const_unwrap(sample);
+        decode_32_const(sample);
     }
 }

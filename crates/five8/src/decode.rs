@@ -473,7 +473,7 @@ mod tests {
         fn proptest_decode_32(key in uniform32(0u8..)) {
             let encoded = bs58::encode(key).into_vec();
             let bs58_res = bs58::decode(&encoded).into_vec().unwrap();
-            let const_res = five8_const::decode_32_const_unwrap(&String::from_utf8(encoded.clone()).unwrap());
+            let const_res = five8_const::decode_32_const(&String::from_utf8(encoded.clone()).unwrap());
             let mut out = [0u8; 32];
             decode_32(&encoded, &mut out).unwrap();
             assert_eq!(bs58_res, out.to_vec());
@@ -489,7 +489,7 @@ mod tests {
             combined[32..].copy_from_slice(&second_half);
             let encoded = bs58::encode(combined).into_vec();
             let bs58_res = bs58::decode(&encoded).into_vec().unwrap();
-            let const_res = five8_const::decode_64_const_unwrap(&String::from_utf8(encoded.clone()).unwrap());
+            let const_res = five8_const::decode_64_const(&String::from_utf8(encoded.clone()).unwrap());
             let mut out = [0u8; 64];
             decode_64(&encoded, &mut out).unwrap();
             assert_eq!(bs58_res, out.to_vec());
