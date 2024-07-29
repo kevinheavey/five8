@@ -4,7 +4,9 @@ members = ["crates/*"]
 exclude = ["bench", "fuzz"]
 
 [workspace.package]
+categories = ["encoding"]
 homepage = "https://github.com/kevinheavey/five8"
+keywords = ["base58", "encoding"]
 repository = "https://github.com/kevinheavey/five8"
 
 [workspace.dependencies]

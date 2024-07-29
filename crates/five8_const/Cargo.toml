@@ -8,6 +8,8 @@ license = "MIT"
 homepage.workspace = true
 readme = "README.md"
 repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [dependencies]
 five8_core.workspace = true
