@@ -41,6 +41,14 @@ jobs:
       - name: Clippy Lint
         run:  RUSTFLAGS="-D warnings" cargo clippy --all-features --tests
 
+  clippy-benches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Clippy Lint
+        run:  cd bench && RUSTFLAGS="-D warnings" cargo clippy --benches
+
   tests:
     runs-on: ubuntu-latest
     steps:
