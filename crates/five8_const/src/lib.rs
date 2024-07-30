@@ -120,7 +120,7 @@ const fn base58_decode_after_be_convert_const<const N: usize>(
     if leading_zero_cnt as usize > N {
         return Err(DecodeError::OutputTooLong);
     }
-    if encoded[leading_zero_cnt as usize] == b'1' {
+    if (leading_zero_cnt as usize) < N && encoded[leading_zero_cnt as usize] == b'1' {
         return Err(DecodeError::OutputTooLong);
     }
     Ok(())
