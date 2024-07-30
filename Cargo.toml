@@ -11,5 +11,5 @@ repository = "https://github.com/kevinheavey/five8"
 
 [workspace.dependencies]
 five8 = { path = "crates/five8", version = "0.1.0" }
-five8_const = { path = "crates/five8_const", version = "0.1.2" }
+five8_const = { path = "crates/five8_const", version = "0.1.3" }
 five8_core = { path = "crates/five8_core", version = "0.1.0" }
