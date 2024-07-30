@@ -821,6 +821,7 @@ mod tests {
     use crate::{decode_32, decode_64};
     #[cfg(target_feature = "avx2")]
     use core::array::from_fn;
+    use five8_const::{decode_32_const, decode_64_const};
     use five8_core::{BASE58_ENCODED_32_MAX_LEN, BASE58_ENCODED_64_MAX_LEN};
     #[cfg(not(miri))]
     use prop::array::uniform32;
@@ -850,6 +851,7 @@ mod tests {
         let mut decoded = [0u8; 32];
         decode_32(encoded.as_bytes(), &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
+        assert_eq!(&decode_32_const(encoded), bytes);
     }
 
     fn check_encode_decode_64(
@@ -864,6 +866,7 @@ mod tests {
         let mut decoded = [0u8; 64];
         decode_64(encoded.as_bytes(), &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
+        assert_eq!(&decode_64_const(encoded), bytes);
     }
 
     fn encode_64_to_string(
