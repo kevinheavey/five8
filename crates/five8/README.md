@@ -15,12 +15,11 @@ There are four functions in the public api:
 
 ```rust
 let mut buf = [0u8; 44];
-let mut len = 0u8;
 let bytes = &[
     24, 243, 6, 223, 230, 153, 210, 8, 92, 137, 123, 67, 164, 197, 79, 196, 125, 43, 183, 85,
     103, 91, 232, 167, 73, 131, 104, 131, 0, 101, 214, 231,
 ];
-five8::encode_32(bytes, Some(&mut len), &mut buf);
+let len = five8::encode_32(bytes, &mut buf);
 assert_eq!(
     &buf[..len as usize],
     [

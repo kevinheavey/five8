@@ -8,7 +8,6 @@ fn showcase_encode_32(c: &mut Criterion) {
     ];
     let string = "2gPihUTjt3FJqf1VpidgrY5cZ6PuyMccGVwQHRfjMPZG";
     let mut buf = [0u8; 44];
-    let mut len = 0u8;
 
     group.bench_function("encode_bs58_noalloc", |b| {
         let mut output = String::with_capacity(string.len());
@@ -21,7 +20,6 @@ fn showcase_encode_32(c: &mut Criterion) {
         b.iter(|| {
             five8::encode_32(
                 black_box(bytes),
-                black_box(Some(&mut len)),
                 black_box(&mut buf),
             )
         })
@@ -40,7 +38,6 @@ fn showcase_encode_64(c: &mut Criterion) {
     let string =
         "11cgTH4D5e8S3snD444WbbGrkepjTvWMj2jkmCGJtgn3H7qrPb1BnwapxpbGdRtHQh9t9Wbn9t6ZDGHzWpL4df";
     let mut buf = [0u8; 88];
-    let mut len = 0u8;
 
     group.bench_function("encode_bs58_noalloc", |b| {
         let mut output = String::with_capacity(string.len());
@@ -53,7 +50,6 @@ fn showcase_encode_64(c: &mut Criterion) {
         b.iter(|| {
             five8::encode_64(
                 black_box(bytes),
-                black_box(Some(&mut len)),
                 black_box(&mut buf),
             )
         })

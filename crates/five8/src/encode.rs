@@ -122,13 +122,6 @@ const INTERMEDIATE_SZ_W_PADDING_32: usize = INTERMEDIATE_SZ_32;
 #[cfg(not(target_feature = "avx2"))]
 const INTERMEDIATE_SZ_W_PADDING_64: usize = INTERMEDIATE_SZ_64;
 
-#[inline(always)]
-fn fd_ulong_store_if(p: Option<&mut u8>, v: u8) {
-    if let Some(inner) = p {
-        *inner = v;
-    }
-}
-
 #[cfg_attr(target_feature = "avx2", repr(align(32)))]
 #[repr(C)]
 struct Intermediate<const INTERMEDIATE_SZ_W_PADDING: usize>([u64; INTERMEDIATE_SZ_W_PADDING]);
@@ -471,7 +464,7 @@ pub fn make_binary_array_64_pub(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
 
 /// Encode a 64-byte array.
 ///
-/// Mutates the provided `out` array and, if provided, the `opt_len`
+/// Mutates the provided `out` array and returns a u8 `len`
 /// which indicates how many bytes of the `out` array were actually written to.
 /// The remaining bytes are unchanged, hence the result we care about after
 /// calling the function is `out[..len as usize]`.
@@ -479,14 +472,13 @@ pub fn make_binary_array_64_pub(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
 /// # Examples
 /// ```
 /// let mut buf = [0u8; 88];
-/// let mut len = 0u8;
 /// let bytes = &[
 ///     0, 0, 10, 85, 198, 191, 71, 18, 5, 54, 6, 255, 181, 32, 227, 150, 208, 3, 157, 135, 222,
 ///     67, 50, 23, 237, 51, 240, 123, 34, 148, 111, 84, 98, 162, 236, 133, 31, 93, 185, 142, 108,
 ///     41, 191, 1, 138, 6, 192, 0, 46, 93, 25, 65, 243, 223, 225, 225, 85, 55, 82, 251, 109, 132,
 ///     165, 2,
 /// ];
-/// five8::encode_64(bytes, Some(&mut len), &mut buf);
+/// let len = five8::encode_64(bytes, &mut buf);
 /// assert_eq!(
 ///     &buf[..len as usize],
 ///     [
@@ -499,11 +491,7 @@ pub fn make_binary_array_64_pub(bytes: &[u8; N_64]) -> [u32; BINARY_SZ_64] {
 /// );
 /// assert_eq!(len, 86);
 #[inline]
-pub fn encode_64(
-    bytes: &[u8; N_64],
-    opt_len: Option<&mut u8>,
-    out: &mut [u8; BASE58_ENCODED_64_MAX_LEN],
-) {
+pub fn encode_64(bytes: &[u8; N_64], out: &mut [u8; BASE58_ENCODED_64_MAX_LEN]) -> u8 {
     let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -591,7 +579,7 @@ pub fn encode_64(
             skip
         }
     };
-    fd_ulong_store_if(opt_len, RAW58_SZ_64 as u8 - skip as u8);
+    RAW58_SZ_64 as u8 - skip as u8
 }
 
 #[inline(always)]
@@ -730,20 +718,19 @@ fn intermediate_to_base58_32_avx(
 
 /// Encode a 32-byte array.
 ///
-/// Mutates the provided `out` array and, if provided, the `opt_len`
+/// Mutates the provided `out` array and returns a u8 `len`
 /// which indicates how many bytes of the `out` array were actually written to.
 /// The remaining bytes are unchanged, hence the result we care about after
-/// calling the function is `out[..len as usize]``
+/// calling the function is `out[..len as usize]`.
 ///
 /// # Examples
 /// ```
 /// let mut buf = [0u8; 44];
-/// let mut len = 0u8;
 /// let bytes = &[
 ///     24, 243, 6, 223, 230, 153, 210, 8, 92, 137, 123, 67, 164, 197, 79, 196, 125, 43, 183,
 ///     85, 103, 91, 232, 167, 73, 131, 104, 131, 0, 101, 214, 231,
 /// ];
-/// five8::encode_32(bytes, Some(&mut len), &mut buf);
+/// let len = five8::encode_32(bytes, &mut buf);
 /// assert_eq!(
 ///     &buf[..len as usize],
 ///     [
@@ -755,11 +742,7 @@ fn intermediate_to_base58_32_avx(
 /// assert_eq!(len, 44);
 /// ```
 #[inline]
-pub fn encode_32(
-    bytes: &[u8; N_32],
-    opt_len: Option<&mut u8>,
-    out: &mut [u8; BASE58_ENCODED_32_MAX_LEN],
-) {
+pub fn encode_32(bytes: &[u8; N_32], out: &mut [u8; BASE58_ENCODED_32_MAX_LEN]) -> u8 {
     let bytes_ptr = bytes as *const u8;
     let in_leading_0s = {
         #[cfg(target_feature = "avx2")]
@@ -774,7 +757,7 @@ pub fn encode_32(
     let binary = make_binary_array_32(bytes);
     let intermediate = make_intermediate_array_32(binary);
     let skip = intermediate_to_base58_32(&intermediate, in_leading_0s, out);
-    fd_ulong_store_if(opt_len, RAW58_SZ_32 as u8 - skip as u8);
+    RAW58_SZ_32 as u8 - skip as u8
 }
 
 #[inline(always)]
@@ -830,24 +813,17 @@ mod tests {
 
     use super::*;
 
-    fn encode_32_to_string(
-        bytes: &[u8; 32],
-        len: &mut u8,
-        buf: &mut [u8; BASE58_ENCODED_32_MAX_LEN],
-    ) -> String {
-        encode_32(bytes, Some(len), buf);
-        buf[..*len as usize].iter().map(|c| *c as char).collect()
+    fn encode_32_to_string(bytes: &[u8; 32], buf: &mut [u8; BASE58_ENCODED_32_MAX_LEN]) -> String {
+        let len = encode_32(bytes, buf);
+        buf[..len as usize].iter().map(|c| *c as char).collect()
     }
 
     fn check_encode_decode_32(
         bytes: &[u8; 32],
-        len: &mut u8,
         buf: &mut [u8; BASE58_ENCODED_32_MAX_LEN],
-        expected_len: u8,
         encoded: &str,
     ) {
-        assert_eq!(&encode_32_to_string(bytes, len, buf), encoded);
-        assert_eq!(*len, expected_len);
+        assert_eq!(&encode_32_to_string(bytes, buf), encoded);
         let mut decoded = [0u8; 32];
         decode_32(encoded.as_bytes(), &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
@@ -856,81 +832,48 @@ mod tests {
 
     fn check_encode_decode_64(
         bytes: &[u8; 64],
-        len: &mut u8,
         buf: &mut [u8; BASE58_ENCODED_64_MAX_LEN],
-        expected_len: u8,
         encoded: &str,
     ) {
-        assert_eq!(&encode_64_to_string(bytes, len, buf), encoded);
-        assert_eq!(*len, expected_len);
+        assert_eq!(&encode_64_to_string(bytes, buf), encoded);
         let mut decoded = [0u8; 64];
         decode_64(encoded.as_bytes(), &mut decoded).unwrap();
         assert_eq!(&decoded, bytes);
         assert_eq!(&decode_64_const(encoded), bytes);
     }
 
-    fn encode_64_to_string(
-        bytes: &[u8; 64],
-        len: &mut u8,
-        buf: &mut [u8; BASE58_ENCODED_64_MAX_LEN],
-    ) -> String {
-        encode_64(bytes, Some(len), buf);
-        buf[..*len as usize].iter().map(|c| *c as char).collect()
+    fn encode_64_to_string(bytes: &[u8; 64], buf: &mut [u8; BASE58_ENCODED_64_MAX_LEN]) -> String {
+        let len = encode_64(bytes, buf);
+        buf[..len as usize].iter().map(|c| *c as char).collect()
     }
 
     #[test]
     fn test_encode_decode_32() {
         let mut buf = [0u8; BASE58_ENCODED_32_MAX_LEN];
-        let mut len = 0u8;
         let mut bytes = [0u8; 32];
-        check_encode_decode_32(
-            &bytes,
-            &mut len,
-            &mut buf,
-            32,
-            "11111111111111111111111111111111",
-        );
+        check_encode_decode_32(&bytes, &mut buf, "11111111111111111111111111111111");
         bytes[31] += 1;
-        check_encode_decode_32(
-            &bytes,
-            &mut len,
-            &mut buf,
-            32,
-            "11111111111111111111111111111112",
-        );
+        check_encode_decode_32(&bytes, &mut buf, "11111111111111111111111111111112");
         bytes[30] += 1;
-        check_encode_decode_32(
-            &bytes,
-            &mut len,
-            &mut buf,
-            32,
-            "1111111111111111111111111111115S",
-        );
+        check_encode_decode_32(&bytes, &mut buf, "1111111111111111111111111111115S");
         let mut bytes = [255u8; 32];
         check_encode_decode_32(
             &bytes,
-            &mut len,
             &mut buf,
-            44,
             "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFG",
         );
         bytes[31] -= 1;
         check_encode_decode_32(
             &bytes,
-            &mut len,
             &mut buf,
-            44,
             "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFF",
         );
         let bytes = [1u8; 32];
         check_encode_decode_32(
             &bytes,
-            &mut len,
             &mut buf,
-            43,
             "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
         );
-        assert_eq!(len, 43);
     }
 
     #[test]
@@ -948,45 +891,34 @@ mod tests {
     #[test]
     fn test_encode_decode_64() {
         let mut buf = [0u8; BASE58_ENCODED_64_MAX_LEN];
-        let mut len = 0u8;
         let mut bytes = [0u8; 64];
         check_encode_decode_64(
             &bytes,
-            &mut len,
             &mut buf,
-            64,
             "1111111111111111111111111111111111111111111111111111111111111111",
         );
         bytes[63] += 1;
         check_encode_decode_64(
             &bytes,
-            &mut len,
             &mut buf,
-            64,
             "1111111111111111111111111111111111111111111111111111111111111112",
         );
         bytes[62] += 1;
         check_encode_decode_64(
             &bytes,
-            &mut len,
             &mut buf,
-            64,
             "111111111111111111111111111111111111111111111111111111111111115S",
         );
         let mut bytes = [255; 64];
         check_encode_decode_64(
             &bytes,
-            &mut len,
             &mut buf,
-            88,
             "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ",
         );
         bytes[63] -= 1;
         check_encode_decode_64(
             &bytes,
-            &mut len,
             &mut buf,
-            88,
             "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roP",
         );
     }
@@ -1028,8 +960,7 @@ mod tests {
         fn proptest_encode_32(key in uniform32(0u8..)) {
             let bs58_res = bs58::encode(key).into_vec();
             let mut out = [0u8; BASE58_ENCODED_32_MAX_LEN];
-            let mut len = 0u8;
-            encode_32(&key, Some(&mut len), &mut out);
+            let len = encode_32(&key, &mut out);
             assert_eq!(bs58_res, out[..len as usize].to_vec());
         }
     }
@@ -1043,8 +974,7 @@ mod tests {
             combined[32..].copy_from_slice(&second_half);
             let bs58_res = bs58::encode(combined).into_vec();
             let mut out = [0u8; BASE58_ENCODED_64_MAX_LEN];
-            let mut len = 0u8;
-            encode_64(&combined, Some(&mut len), &mut out);
+            let len = encode_64(&combined, &mut out);
             assert_eq!(bs58_res, out[..len as usize].to_vec());
         }
     }
