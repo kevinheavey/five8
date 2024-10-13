@@ -464,11 +464,11 @@ mod tests {
         let res2 = unsafe { _mm256_shuffle_epi32::<0b00_00_10_00>(core::mem::transmute(bytes2)) };
         let out: [u32; 8] = unsafe { core::mem::transmute(res) };
         let out2: [u32; 8] = unsafe { core::mem::transmute(res2) };
-        println!("out: {out:?}");
-        println!("out2: {out2:?}");
+        std::println!("out: {out:?}");
+        std::println!("out2: {out2:?}");
         let unpacked = unsafe { _mm256_unpacklo_epi64(res, res2) };
         let out3: [u32; 8] = unsafe { core::mem::transmute(unpacked) };
-        println!("out3: {out3:?}");
+        std::println!("out3: {out3:?}");
     }
 
     #[cfg(not(miri))]
@@ -477,7 +477,7 @@ mod tests {
         fn proptest_decode_32(key in uniform32(0u8..)) {
             let encoded = bs58::encode(key).into_vec();
             let bs58_res = bs58::decode(&encoded).into_vec().unwrap();
-            let const_res = five8_const::decode_32_const(&String::from_utf8(encoded.clone()).unwrap());
+            let const_res = five8_const::decode_32_const(&std::string::String::from_utf8(encoded.clone()).unwrap());
             let mut out = [0u8; 32];
             decode_32(&encoded, &mut out).unwrap();
             assert_eq!(bs58_res, out.to_vec());
@@ -494,7 +494,7 @@ mod tests {
             combined[32..].copy_from_slice(&second_half);
             let encoded = bs58::encode(combined).into_vec();
             let bs58_res = bs58::decode(&encoded).into_vec().unwrap();
-            let const_res = five8_const::decode_64_const(&String::from_utf8(encoded.clone()).unwrap());
+            let const_res = five8_const::decode_64_const(&std::string::String::from_utf8(encoded.clone()).unwrap());
             let mut out = [0u8; 64];
             decode_64(&encoded, &mut out).unwrap();
             assert_eq!(bs58_res, out.to_vec());
