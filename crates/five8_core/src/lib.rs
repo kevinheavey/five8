@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 pub const BASE58_INVERSE_TABLE_OFFSET: u8 = b'1';
 pub const BASE58_INVERSE_TABLE_SENTINEL: u8 = 1 + b'z' - BASE58_INVERSE_TABLE_OFFSET;
 

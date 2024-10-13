@@ -13,3 +13,7 @@ keywords.workspace = true
 
 [features]
 std = []
+
+[package.metadata.docs.rs]
+features = ["std"]
+rustdoc-args = ["--cfg=docsrs"]
