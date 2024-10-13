@@ -1,5 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#[cfg(feature = "std")]
+extern crate std;
+#[cfg(feature = "std")]
+use core::fmt;
 pub const BASE58_INVERSE_TABLE_OFFSET: u8 = b'1';
 pub const BASE58_INVERSE_TABLE_SENTINEL: u8 = 1 + b'z' - BASE58_INVERSE_TABLE_OFFSET;
 
@@ -123,18 +127,16 @@ pub enum DecodeError {
 impl std::error::Error for DecodeError {}
 
 #[cfg(feature = "std")]
-impl core::fmt::Display for DecodeError {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+impl fmt::Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             DecodeError::InvalidChar(c) => {
-                ::core::write!(formatter, "Illegal base58 char number: {}", c)
+                write!(f, "Illegal base58 char number: {}", c)
             }
-            DecodeError::TooLong => formatter.write_str("Base58 string too long"),
-            DecodeError::TooShort => formatter.write_str("Base58 string too short"),
-            DecodeError::LargestTermTooHigh => {
-                formatter.write_str("Largest term greater than 2^32")
-            }
-            DecodeError::OutputTooLong => formatter.write_str("Decoded output has too many bytes"),
+            DecodeError::TooLong => f.write_str("Base58 string too long"),
+            DecodeError::TooShort => f.write_str("Base58 string too short"),
+            DecodeError::LargestTermTooHigh => f.write_str("Largest term greater than 2^32"),
+            DecodeError::OutputTooLong => f.write_str("Decoded output has too many bytes"),
         }
     }
 }
