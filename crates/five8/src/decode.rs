@@ -282,6 +282,7 @@ mod tests {
     use prop::array::uniform32;
     #[cfg(not(miri))]
     use proptest::prelude::*;
+    use std::string::String;
 
     use super::*;
 
