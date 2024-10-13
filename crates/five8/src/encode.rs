@@ -410,7 +410,7 @@ fn u8s_to_u32s_swapped_64(bytes: &[u8; N_64], out: &mut [u8; N_64]) {
 //             16, 17, 18, 19, 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
 //         )
 //     };
-//     println!("mask: {mask:?}");
+//     std::println!("mask: {mask:?}");
 //     let res_m256i =
 //         unsafe { core::arch::x86_64::_mm512_shuffle_epi8(core::mem::transmute(bytes), mask) };
 //     unsafe { core::mem::transmute(res_m256i) }

@@ -465,11 +465,11 @@ mod tests {
         let res2 = unsafe { _mm256_shuffle_epi32::<0b00_00_10_00>(core::mem::transmute(bytes2)) };
         let out: [u32; 8] = unsafe { core::mem::transmute(res) };
         let out2: [u32; 8] = unsafe { core::mem::transmute(res2) };
-        println!("out: {out:?}");
-        println!("out2: {out2:?}");
+        std::println!("out: {out:?}");
+        std::println!("out2: {out2:?}");
         let unpacked = unsafe { _mm256_unpacklo_epi64(res, res2) };
         let out3: [u32; 8] = unsafe { core::mem::transmute(unpacked) };
-        println!("out3: {out3:?}");
+        std::println!("out3: {out3:?}");
     }
 
     #[cfg(not(miri))]
