@@ -1,7 +1,8 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#[cfg(feature = "std")]
-extern crate std;
+// Support using the crate without the standard library.
+#![cfg_attr(not(feature = "std"), no_std)]
+
 #[cfg(feature = "std")]
 use core::fmt;
 pub const BASE58_INVERSE_TABLE_OFFSET: u8 = b'1';
