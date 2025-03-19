@@ -1,7 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![no_std]
 #[cfg(feature = "std")]
 extern crate std;
+
 #[cfg(feature = "std")]
 use core::fmt;
 pub const BASE58_INVERSE_TABLE_OFFSET: u8 = b'1';
