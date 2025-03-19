@@ -77,7 +77,7 @@ fn base58_decode_after_be_convert<const N: usize>(
     if unlikely(
         encoded
             .get(leading_zero_cnt as usize)
-            .map_or(false, |x| *x == b'1'),
+            .is_some_and(|x| *x == b'1'),
     ) {
         return Err(DecodeError::OutputTooLong);
     }
