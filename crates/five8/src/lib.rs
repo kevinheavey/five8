@@ -12,7 +12,7 @@ mod bits_find_lsb;
 mod decode;
 mod encode;
 pub use decode::{decode_32, decode_64};
-pub use encode::{encode_32, encode_64};
+pub use encode::{encode_32, encode_32_to_str, encode_64, encode_64_to_str};
 pub use five8_core::{DecodeError, BASE58_ENCODED_32_MAX_LEN, BASE58_ENCODED_64_MAX_LEN};
 #[cfg(feature = "dev-utils")]
 pub use {

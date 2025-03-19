@@ -582,6 +582,14 @@ pub fn encode_64(bytes: &[u8; N_64], out: &mut [u8; BASE58_ENCODED_64_MAX_LEN]) 
     RAW58_SZ_64 as u8 - skip as u8
 }
 
+pub fn encode_64_to_str<'a>(
+    bytes: &[u8; N_64],
+    out: &'a mut [u8; BASE58_ENCODED_64_MAX_LEN],
+) -> &'a str {
+    let size = encode_64(bytes, out);
+    unsafe { std::str::from_utf8_unchecked(&out[..size as usize]) }
+}
+
 #[inline(always)]
 fn make_intermediate_array_64(
     binary: [u32; BINARY_SZ_64],
@@ -758,6 +766,14 @@ pub fn encode_32(bytes: &[u8; N_32], out: &mut [u8; BASE58_ENCODED_32_MAX_LEN]) 
     let intermediate = make_intermediate_array_32(binary);
     let skip = intermediate_to_base58_32(&intermediate, in_leading_0s, out);
     RAW58_SZ_32 as u8 - skip as u8
+}
+
+pub fn encode_32_to_str<'a>(
+    bytes: &[u8; N_32],
+    out: &'a mut [u8; BASE58_ENCODED_32_MAX_LEN],
+) -> &'a str {
+    let size = encode_32(bytes, out);
+    unsafe { std::str::from_utf8_unchecked(&out[..size as usize]) }
 }
 
 #[inline(always)]
