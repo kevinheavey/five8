@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.4] - 2025-03-19
+
+Add missing `#![no_std]` [(#10)](https://github.com/kevinheavey/five8/pull/10)
+
 ## [0.1.3] - 2024-07-30
 
 Fix edge case in const decoding.
