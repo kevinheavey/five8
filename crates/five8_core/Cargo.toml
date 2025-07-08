@@ -10,10 +10,7 @@ readme = "README.md"
 repository.workspace = true
 categories.workspace = true
 keywords.workspace = true
-
-[features]
-std = []
+rust-version = "1.81"
 
 [package.metadata.docs.rs]
-features = ["std"]
 rustdoc-args = ["--cfg=docsrs"]

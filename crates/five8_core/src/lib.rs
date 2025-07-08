@@ -1,10 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![no_std]
-#[cfg(feature = "std")]
-extern crate std;
 
-#[cfg(feature = "std")]
 use core::fmt;
 pub const BASE58_INVERSE_TABLE_OFFSET: u8 = b'1';
 pub const BASE58_INVERSE_TABLE_SENTINEL: u8 = 1 + b'z' - BASE58_INVERSE_TABLE_OFFSET;
@@ -125,10 +122,8 @@ pub enum DecodeError {
     OutputTooLong,
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for DecodeError {}
+impl core::error::Error for DecodeError {}
 
-#[cfg(feature = "std")]
 impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

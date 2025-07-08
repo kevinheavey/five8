@@ -810,6 +810,7 @@ mod tests {
     use prop::array::uniform32;
     #[cfg(not(miri))]
     use proptest::prelude::*;
+    extern crate std;
     use std::string::String;
 
     use super::*;
