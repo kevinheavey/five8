@@ -128,7 +128,7 @@ impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             DecodeError::InvalidChar(c) => {
-                write!(f, "Illegal base58 char number: {}", c)
+                write!(f, "Illegal base58 char number: {c}")
             }
             DecodeError::TooLong => f.write_str("Base58 string too long"),
             DecodeError::TooShort => f.write_str("Base58 string too short"),
