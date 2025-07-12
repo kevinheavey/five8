@@ -1,6 +1,6 @@
 [package]
 name = "five8_const"
-version = "0.1.4"
+version = "1.0.0"
 edition = "2021"
 resolver = "2"
 description = "Compile-time base58 decoding."

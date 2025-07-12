@@ -1,6 +1,6 @@
 [package]
 name = "five8"
-version = "0.2.1"
+version = "1.0.0"
 edition = "2021"
 resolver = "2"
 description = "Fast base58 encoding and decoding for 32-byte and 64-byte arrays."
@@ -13,17 +13,15 @@ keywords.workspace = true
 
 [features]
 dev-utils = [] # internal use only
-std = ["five8_core/std"]
 
 [dependencies]
 five8_core.workspace = true
 
 [dev-dependencies]
 bs58 = "0.5.1"
-five8 = { path = ".", features = ["std"] }
+five8 = { path = "." }
 five8_const = { workspace = true }
 proptest = "1.5.0"
 
 [package.metadata.docs.rs]
-features = ["std"]
 rustdoc-args = ["--cfg=docsrs"]

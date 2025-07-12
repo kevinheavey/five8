@@ -1,6 +1,6 @@
 [package]
 name = "five8_core"
-version = "0.1.2"
+version = "1.0.0"
 edition = "2021"
 resolver = "2"
 license = "MIT"
@@ -10,10 +10,7 @@ readme = "README.md"
 repository.workspace = true
 categories.workspace = true
 keywords.workspace = true
-
-[features]
-std = []
+rust-version = "1.81"
 
 [package.metadata.docs.rs]
-features = ["std"]
 rustdoc-args = ["--cfg=docsrs"]

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.0] - 2025-07-12
+
+Switch to `core::error`, remove std feature and set msrv to 1.81 [(#13)](https://github.com/kevinheavey/five8/pull/13)
+
 ## [0.1.2] - 2025-03-19
 
 Add missing `#![no_std]` [(#10)](https://github.com/kevinheavey/five8/pull/10)
