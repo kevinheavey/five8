@@ -1,6 +1,6 @@
 [package]
 name = "five8"
-version = "0.2.1"
+version = "1.0.0"
 edition = "2021"
 resolver = "2"
 description = "Fast base58 encoding and decoding for 32-byte and 64-byte arrays."
