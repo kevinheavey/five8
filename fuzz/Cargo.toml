@@ -1,0 +1,22 @@
+[package]
+name = "five8-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+bs58 = "0.5.1"
+libfuzzer-sys = "0.4"
+
+[dependencies.five8]
+path = "../crates/five8"
+
+[[bin]]
+name = "roundtrip_bs58_differential"
+path = "fuzz_targets/roundtrip_bs58_differential.rs"
+test = false
+doc = false
+bench = false
